@@ -30,7 +30,8 @@ export default function Signup() {
     if (!form.name.trim())     e.name     = 'Full name is required.'
     if (!form.username.trim()) e.username = 'Username is required.'
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Enter a valid email.'
-    if (form.password.length < 6) e.password = 'Password must be at least 6 characters.'
+    const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\[\]{};':"\\|,.<>\/?]).{8,}$/
+    if (!pwRegex.test(form.password)) e.password = 'Password must be at least 8 chars, with upper, lower, and special chars.'
     if (form.confirm !== form.password) e.confirm = 'Passwords do not match.'
     if (!role) e.role = 'Please select a role.'
     setErrors(e)

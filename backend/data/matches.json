@@ -15,9 +15,10 @@
     "format": "Best of 3",
     "lobbyCode": null,
     "server": "Middle East",
-    "attendanceA": false,
+    "attendanceA": true,
     "attendanceB": false,
-    "createdAt": "2026-05-01T08:06:12.554Z"
+    "createdAt": "2026-05-01T08:06:12.554Z",
+    "updatedAt": "2026-05-02T13:15:01.815Z"
   },
   {
     "id": "m2",

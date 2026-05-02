@@ -7,6 +7,7 @@ import Alert from '../components/Alert'
 import Skeleton from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
+import { API } from '../api/index'
 
 const NEXT_MATCH = new Date(Date.now() + 2 * 3600000 + 14 * 60000).toISOString()
 
@@ -27,10 +28,21 @@ export default function DashboardManager() {
   const [pageLoading, setPageLoading] = useState(true)
   const firstName = user?.name?.split(' ')[0] || 'Manager'
 
+  const [myTeams, setMyTeams] = useState([])
+
   useEffect(() => {
-    const t = setTimeout(() => setPageLoading(false), 500)
-    return () => clearTimeout(t)
-  }, [])
+    const fetchData = async () => {
+      try {
+        const res = await API.teams.list()
+        if (res.data) {
+          const managed = res.data.filter(t => t.manager === user?.id)
+          setMyTeams(managed)
+        }
+      } catch (e) {}
+      setPageLoading(false)
+    }
+    fetchData()
+  }, [user])
 
   if (pageLoading) return <><Header /><Skeleton.Dashboard /></>
 
@@ -72,8 +84,8 @@ export default function DashboardManager() {
               </div>
               {[
                 { label:'Create your account', done:true },
-                { label:'Register your team for a tournament', done:false, href:'/register-team', btnLabel:'Register →' },
-                { label:'Fill your roster (5 core + 1 sub)', done:false, href:'/roster', btnLabel:'Manage Roster →' },
+                { label:'Register your team for a tournament', done: myTeams.length > 0, href:'/register-team', btnLabel:'Register →' },
+                { label:'Fill your roster (5 core + 1 sub)', done: myTeams.some(t => t.players?.length >= 5), href:'/roster', btnLabel:'Manage Roster →' },
               ].map((item, i) => (
                 <div key={i} className={`onboarding-checklist__item ${item.done ? 'done' : ''}`}>
                   <div className="onboarding-checklist__check">{item.done ? '✓' : ''}</div>
@@ -87,10 +99,10 @@ export default function DashboardManager() {
           {/* Stats */}
           <div className="grid-4" style={{marginBottom:32}}>
             {[
-              { icon:'🏆', color:'warn',   value:'2',   label:'Active Tournaments', note:'1 pending approval' },
-              { icon:'👥', color:'accent', value:'5',   label:'Roster Players',      note:'1 sub slot open'    },
-              { icon:'📅', color:'blue',   value:'3',   label:'Upcoming Matches',   note:'Next in 2 hours'    },
-              { icon:'📈', color:'purple', value:'77%', label:'Team Win Rate',       note:'17W / 5L all time'  },
+              { icon:'🏆', color:'warn',   value: myTeams.length, label:'Active Teams', note: myTeams.some(t => t.status === 'pending') ? '1 pending approval' : 'All approved' },
+              { icon:'👥', color:'accent', value: myTeams.reduce((acc, t) => acc + (t.players?.length || 0), 0), label:'Total Roster Players', note:'Across all teams' },
+              { icon:'📅', color:'blue',   value: user?.stats?.matchesPlayed || 0, label:'Upcoming Matches', note:'Default demo' },
+              { icon:'📈', color:'purple', value: `${myTeams.reduce((acc, t) => acc + (t.winRate || 0), 0) / (myTeams.length || 1)}%`, label:'Avg Team Win Rate', note:'Across all teams' },
             ].map(s => (
               <div key={s.label} className="card card__body stat-card">
                 <div className={`stat-card__icon stat-card__icon--${s.color}`} style={{fontSize:18}}>{s.icon}</div>

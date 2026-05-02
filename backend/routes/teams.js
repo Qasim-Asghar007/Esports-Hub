@@ -32,10 +32,36 @@ router.post('/', requireAuth, requireRole('manager'), (req, res) => {
   if (!t) return res.status(404).json({ error: 'Tournament not found.' })
   if (t.registered >= t.maxTeams) return res.status(409).json({ error: 'Tournament is full.' })
 
+  // Validate players exist and link their User IDs
+  const allUsers = db.findAll('users')
+  let validPlayers = []
+  if (players && Array.isArray(players)) {
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i]
+      if (p.name || p.ign) {
+        const exists = allUsers.find(u => u.ign === p.ign || u.email === p.email)
+        if (!exists) {
+          return res.status(400).json({ error: `Player ${p.ign || p.name} does not exist in the database. Please verify their IGN or Email.` })
+        }
+        validPlayers.push({ ...p, userId: exists.id })
+      }
+    }
+  }
+
+  // Same for sub
+  let validSub = sub
+  if (sub && (sub.name || sub.ign)) {
+    const exists = allUsers.find(u => u.ign === sub.ign || u.email === sub.email)
+    if (!exists) {
+      return res.status(400).json({ error: `Substitute player ${sub.ign || sub.name} does not exist in the database.` })
+    }
+    validSub = { ...sub, userId: exists.id }
+  }
+
   const team = {
     id: uuidv4(), name: name.trim(), tag: tag?.trim() || name.slice(0,2).toUpperCase(),
     game, tournament, manager: req.user.id, status: 'pending',
-    players: players || [], sub: sub || null,
+    players: validPlayers, sub: validSub,
     contactEmail: contactEmail || req.user.email,
     wins: 0, losses: 0, winRate: 0, seed: null,
     createdAt: new Date().toISOString(),
@@ -44,6 +70,26 @@ router.post('/', requireAuth, requireRole('manager'), (req, res) => {
 
   // Increment registration count
   db.update('tournaments', tournament, { registered: t.registered + 1 })
+
+  // Notify players to confirm registration
+  validPlayers.forEach(p => {
+    db.insert('notifications', {
+      id: uuidv4(), userId: p.userId,
+      message: `You have been invited to join team <strong>${team.name}</strong>.`,
+      time: 'just now', read: false,
+      type: 'team_invite', teamId: team.id,
+      createdAt: new Date().toISOString(),
+    })
+  })
+  if (validSub && validSub.userId) {
+    db.insert('notifications', {
+      id: uuidv4(), userId: validSub.userId,
+      message: `You have been invited as a substitute for team <strong>${team.name}</strong>.`,
+      time: 'just now', read: false,
+      type: 'team_invite', teamId: team.id,
+      createdAt: new Date().toISOString(),
+    })
+  }
 
   res.status(201).json({ data: team })
 })

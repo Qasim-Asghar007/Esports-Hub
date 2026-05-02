@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import Alert from '../components/Alert'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
-import { MockDB } from '../api/index'
+import { API, MockDB } from '../api/index'
 
 const STEPS = [
   { id:1, label:'Tournament',     icon:'🏆' },
@@ -81,9 +81,13 @@ export default function RegisterTeam() {
   const handleSubmit = async () => {
     if (!validate()) return
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
+    const res = await API.teams.register(form.tournament, form)
     setLoading(false)
-    toast.success('Team registered!', 'Your team is pending organizer approval.')
+    if (res.error) {
+      toast.error('Registration failed', res.error)
+      return
+    }
+    toast.success('Team registered!', 'Your team is pending organizer approval and players have been notified.')
     navigate('/dashboard/manager')
   }
 

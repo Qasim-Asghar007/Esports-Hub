@@ -63,7 +63,7 @@ export const API = {
     delete: (id)           => del(`/tournaments/${id}`),
   },
   teams: {
-    register:     (tournamentId, data) => post(`/tournaments/${tournamentId}/teams`, data),
+    register:     (tournamentId, data) => post(`/teams`, { ...data, tournament: tournamentId }),
     get:          (id)                 => get(`/teams/${id}`),
     list:         (tournamentId)       => get(`/tournaments/${tournamentId}/teams`),
     update:       (id, data)           => put(`/teams/${id}`, data),

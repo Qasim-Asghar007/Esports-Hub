@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import FAB from '../components/FAB'
@@ -7,6 +7,7 @@ import Alert from '../components/Alert'
 import Modal from '../components/Modal'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
+import { API } from '../api/index'
 
 const NEXT_MATCH = new Date(Date.now() + 1 * 3600000 + 45 * 60000).toISOString()
 
@@ -27,9 +28,18 @@ export default function DashboardPlayer() {
   const [subModal,      setSubModal]      = useState(false)
   const firstName = user?.name?.split(' ')[0] || 'Player'
 
+  useEffect(() => {
+    API.matches.get('m1').then(res => {
+      const m = res.data
+      if (m && (m.attendance?.team1 === true || m.attendance?.confirmed === true || m.attendanceA === true)) {
+        setConfirmed(true)
+      }
+    }).catch(() => {})
+  }, [])
+
   const handleConfirm = async () => {
     setConfirmLoading(true)
-    await new Promise(r => setTimeout(r, 800))
+    await API.matches.confirmAttendance('m1', user?.id)
     setConfirmed(true)
     setConfirmLoading(false)
     toast.success('Attendance confirmed!', 'Your team manager has been notified.')
@@ -82,10 +92,10 @@ export default function DashboardPlayer() {
           {/* Stats */}
           <div className="grid-4" style={{marginBottom:32}}>
             {[
-              { icon:'🎮', color:'blue',   value:'22',  label:'Matches Played',  note:'This semester' },
-              { icon:'🏆', color:'accent', value:'77%', label:'Win Rate',        note:'17W · 5L'       },
-              { icon:'⚡', color:'warn',   value:'1.8', label:'K/D Ratio',       note:'Avg per match'  },
-              { icon:'🥇', color:'purple', value:'#4',  label:'Leaderboard Rank',note:'Top 5% overall' },
+              { icon:'🎮', color:'blue',   value: user?.stats?.matchesPlayed || 0, label:'Matches Played',  note:'This semester' },
+              { icon:'🏆', color:'accent', value: `${user?.stats?.winRate || 0}%`, label:'Win Rate',        note:`${user?.stats?.wins || 0}W · ${user?.stats?.losses || 0}L` },
+              { icon:'⚡', color:'warn',   value: user?.stats?.kd || 0,            label:'K/D Ratio',       note:'Avg per match'  },
+              { icon:'🥇', color:'purple', value: `#${user?.stats?.rank || 0}`,    label:'Leaderboard Rank',note:'Top 5% overall' },
             ].map(s => (
               <div key={s.label} className="card card__body stat-card">
                 <div className={`stat-card__icon stat-card__icon--${s.color}`} style={{fontSize:18}}>{s.icon}</div>
@@ -168,9 +178,9 @@ export default function DashboardPlayer() {
                 </div>
                 {/* Stat bars */}
                 {[
-                  { label:'Wins this season', val:17, max:22, pct:77, color:'accent' },
-                  { label:'Avg K/D ratio',    val:1.8,max:3,  pct:60, color:'blue'   },
-                  { label:'Headshot %',       val:42, max:100,pct:42, color:'warn'   },
+                  { label:'Wins this season', val: user?.stats?.wins || 0, max: Math.max(22, (user?.stats?.wins || 0) + 5), pct: Math.round(((user?.stats?.wins || 0) / Math.max(1, (user?.stats?.matchesPlayed || 1))) * 100), color:'accent' },
+                  { label:'Avg K/D ratio',    val: user?.stats?.kd || 0,   max: 3,  pct: Math.min(100, ((user?.stats?.kd || 0) / 3) * 100), color:'blue'   },
+                  { label:'Headshot %',       val: user?.stats?.headshot || 0, max: 100,pct: user?.stats?.headshot || 0, color:'warn'   },
                 ].map(s => (
                   <div key={s.label}>
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:'.8rem',marginBottom:6}}>

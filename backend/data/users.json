@@ -232,5 +232,57 @@
       "rank": null
     },
     "createdAt": "2026-05-02T12:57:47.300Z"
+  },
+  {
+    "id": "6f0a33a2-7fe8-43f3-b1f8-65e71ec58293",
+    "name": "Test Player",
+    "username": "testplayer1",
+    "email": "test@giki.edu.pk",
+    "password": "$2a$10$aQCz37DNVC210b/HkSMNs.90mXimA3d96QqpjaakXrA5W9kzm.lNS",
+    "role": "player",
+    "avatar": "TE",
+    "ign": "testie",
+    "game": "Valorant",
+    "team": null,
+    "bio": "",
+    "isDemo": false,
+    "stats": {
+      "matchesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRate": 0,
+      "kd": 0,
+      "hsPercent": 0,
+      "fbPercent": 0,
+      "points": 0,
+      "rank": null
+    },
+    "createdAt": "2026-05-02T13:13:41.029Z"
+  },
+  {
+    "id": "063769ab-ba68-493d-8268-c008eaca3f80",
+    "name": "Test",
+    "username": "Test11",
+    "email": "testman@giki.edu.pk",
+    "password": "$2a$10$Z3HrS1JKg7tKbBBkNqGfweC5i0EvdU.BnxwIzbHWYC0MW.DyyU9H2",
+    "role": "manager",
+    "avatar": "TE",
+    "ign": "testtt",
+    "game": "Valorant",
+    "team": null,
+    "bio": "",
+    "isDemo": false,
+    "stats": {
+      "matchesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRate": 0,
+      "kd": 0,
+      "hsPercent": 0,
+      "fbPercent": 0,
+      "points": 0,
+      "rank": null
+    },
+    "createdAt": "2026-05-02T13:16:10.973Z"
   }
 ]
