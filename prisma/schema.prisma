@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  username  String   @unique
+  email     String   @unique
+  password  String
+  role      String   // 'player', 'manager', 'organizer'
+  avatar    String?
+  game      String?
+  ign       String?
+  bio       String?
+  isDemo    Boolean  @default(false)
+  
+  // We can store stats as JSON for flexibility, just like your current JSON file
+  stats     Json?    
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  managedTeams Team[] @relation("ManagerTeams")
+  rosterSpots  TeamPlayer[]
+}
+
+model Team {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  tag        String
+  game       String
+  status     String   @default("pending")
+  seed       Int?
+  
+  wins       Int      @default(0)
+  losses     Int      @default(0)
+  winRate    Int      @default(0)
+  
+  createdAt  DateTime @default(now())
+
+  // Relations
+  managerId  String?
+  manager    User?    @relation("ManagerTeams", fields: [managerId], references: [id])
+  
+  players    TeamPlayer[]
+  
+  // Relations
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+  matchesAsTeamA Match[] @relation("MatchTeamA")
+  matchesAsTeamB Match[] @relation("MatchTeamB")
+}
+
+model TeamPlayer {
+  id        String  @id @default(uuid())
+  name      String
+  ign       String
+  role      String
+  confirmed Boolean @default(false)
+
+  // Relations
+  teamId    String
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+}
+
+model Tournament {
+  id          String   @id @default(uuid())
+  title       String
+  game        String
+  status      String   @default("upcoming")
+  stage       String   @default("Registration")
+  format      String   @default("Single Elimination")
+  maxTeams    Int      @default(16)
+  registered  Int      @default(0)
+  prize       String   @default("TBA")
+  date        String?
+  deadline    String?
+  platform    String   @default("PC")
+  description String?
+  organizer   String?
+
+  createdAt   DateTime @default(now())
+
+  teams       Team[]
+  matches     Match[]
+}
+
+model Match {
+  id              String   @id @default(uuid())
+  tournamentId    String
+  tournament      Tournament @relation(fields: [tournamentId], references: [id])
+  stage           String
+  
+  teamAId         String?
+  teamA           Team?      @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamBId         String?
+  teamB           Team?      @relation("MatchTeamB", fields: [teamBId], references: [id])
+
+  scheduledAt     DateTime?
+  status          String     @default("upcoming")
+  score           String?
+  winner          String?
+  
+  game            String     @default("Valorant")
+  format          String     @default("Best of 3")
+  lobbyCode       String?
+  server          String     @default("Middle East")
+  
+  attendanceA     Boolean    @default(false)
+  attendanceB     Boolean    @default(false)
+  
+  resultSubmitted Json?
+  resultVerified  Boolean    @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+
+  dispute         Json?
+
+  createdAt       DateTime   @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  message   String
+  time      String   @default("just now")
+  read      Boolean  @default(false)
+  type      String?
+  teamId    String?
+
+  createdAt DateTime @default(now())
+}
