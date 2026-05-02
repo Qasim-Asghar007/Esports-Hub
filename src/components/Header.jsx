@@ -25,7 +25,7 @@ function dashHref(role) {
 }
 
 export default function Header() {
-  const { user, isLoggedIn, logout, switchRole } = useAuth()
+  const { user, isLoggedIn, logout, switchRole, triggerTutorial } = useAuth()
   const toast  = useToast()
   const loc    = useLocation()
   const nav    = useNavigate()
@@ -267,6 +267,16 @@ export default function Header() {
         <div style={{marginTop:20,padding:14,background:'var(--accent-bg)',borderRadius:8,fontSize:'.8rem',color:'var(--accent)'}}>
           <strong>Demo logins:</strong> ali@giki.edu.pk · ahmed@giki.edu.pk · usman@giki.edu.pk<br/>
           Password: <code style={{background:'rgba(0,0,0,.2)',padding:'1px 6px',borderRadius:4}}>demo123</code>
+        </div>
+        {/* Tutorial replay button */}
+        <div style={{marginTop:16,paddingTop:16,borderTop:'1px solid var(--border)'}}>
+          <button
+            className="btn btn--outline btn--sm btn--full"
+            style={{justifyContent:'center'}}
+            onClick={() => { setHelpOpen(false); triggerTutorial() }}
+          >
+            🎓 Replay Onboarding Tutorial
+          </button>
         </div>
       </Modal>
     </>

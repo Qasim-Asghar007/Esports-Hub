@@ -11,8 +11,8 @@
  * REST endpoints your backend must implement (see progress.md for full list)
  */
 
-// ← Set this to your backend URL when ready
-export const API_BASE_URL = ''
+// Read from .env (VITE_API_BASE_URL=http://localhost:3001) or leave empty for MockDB
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 // Token getter — AuthContext stores it; this lets api.js read it without circular imports
 let _tokenGetter = () => null

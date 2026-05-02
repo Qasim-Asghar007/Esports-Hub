@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import TournamentCard from '../components/TournamentCard'
+import Skeleton from '../components/Skeleton'
 import { useToast } from '../hooks/useToast'
 import { useAuth } from '../hooks/useAuth'
 import { MockDB } from '../api/index'
@@ -20,6 +21,13 @@ export default function Tournaments() {
   const [status,    setStatus]    = useState('All')
   const [sort,      setSort]      = useState('newest')
   const [registered,setRegistered]= useState([])
+  const [pageLoading, setPageLoading] = useState(true)
+
+  // Simulate initial data fetch (replace with real API call when backend connected)
+  useEffect(() => {
+    const t = setTimeout(() => setPageLoading(false), 600)
+    return () => clearTimeout(t)
+  }, [])
 
   const tournaments = useMemo(() => {
     let list = [...MockDB._tournaments]
@@ -41,6 +49,25 @@ export default function Tournaments() {
 
   const liveCount     = MockDB._tournaments.filter(t => t.status === 'live').length
   const upcomingCount = MockDB._tournaments.filter(t => t.status === 'upcoming' || t.status === 'registration').length
+
+  if (pageLoading) return (
+    <>
+      <Header />
+      <div className="page-wrapper">
+        <div className="container">
+          <div style={{ marginBottom:32 }}>
+            <Skeleton width={100} height={12} style={{ marginBottom:8 }} />
+            <Skeleton width="40%" height={36} style={{ marginBottom:8 }} />
+            <Skeleton width="55%" height={14} />
+          </div>
+          <div style={{ height:80, background:'var(--bg-2)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', marginBottom:32 }} />
+          <div className="grid-3">
+            {[1,2,3,4,5,6].map(i => <Skeleton.TournamentCard key={i} />)}
+          </div>
+        </div>
+      </div>
+    </>
+  )
 
   return (
     <>

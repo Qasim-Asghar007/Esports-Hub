@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import Skeleton from '../components/Skeleton'
 import { MockDB } from '../api/index'
 import { useAuth } from '../hooks/useAuth'
 
@@ -9,8 +10,14 @@ const GAMES = ['All Games','Valorant','CS2','League of Legends']
 
 export default function Leaderboard() {
   const { user } = useAuth()
-  const [tab,  setTab]  = useState('global')
-  const [game, setGame] = useState('All Games')
+  const [tab,         setTab]        = useState('global')
+  const [game,        setGame]       = useState('All Games')
+  const [pageLoading, setPageLoading]= useState(true)
+
+  useEffect(() => {
+    const t = setTimeout(() => setPageLoading(false), 700)
+    return () => clearTimeout(t)
+  }, [])
 
   const entries = MockDB._leaderboard || []
   const filtered = game === 'All Games' ? entries : entries.filter(e => e.game === game)
@@ -21,6 +28,22 @@ export default function Leaderboard() {
     if (rank === 3) return '🥉'
     return rank
   }
+
+  if (pageLoading) return (
+    <>
+      <Header />
+      <div className="page-wrapper">
+        <div className="container">
+          <div style={{ marginBottom:32 }}>
+            <Skeleton width={100} height={12} style={{ marginBottom:8 }} />
+            <Skeleton width="40%" height={36} style={{ marginBottom:8 }} />
+            <Skeleton width="50%" height={14} />
+          </div>
+          <Skeleton.Table rows={10} cols={9} />
+        </div>
+      </div>
+    </>
+  )
 
   return (
     <>

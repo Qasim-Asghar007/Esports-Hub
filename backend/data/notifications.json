@@ -1,0 +1,37 @@
+[
+  {
+    "id": "n1",
+    "userId": "u2",
+    "message": "Your next match vs <strong>Phoenix Squad</strong> is in 2 hours.",
+    "time": "1h ago",
+    "read": false
+  },
+  {
+    "id": "n2",
+    "userId": "u1",
+    "message": "Team <strong>Nexus Gaming</strong> has submitted for approval.",
+    "time": "3h ago",
+    "read": false
+  },
+  {
+    "id": "n3",
+    "userId": "u2",
+    "message": "Match result verified — <strong>Nova Esports</strong> advances!",
+    "time": "1d ago",
+    "read": true
+  },
+  {
+    "id": "n4",
+    "userId": "u3",
+    "message": "New result submitted for verification: <strong>QF Match 1</strong>.",
+    "time": "2h ago",
+    "read": false
+  },
+  {
+    "id": "n5",
+    "userId": "u1",
+    "message": "Registration closes in <strong>3 days</strong> — confirm your roster.",
+    "time": "6h ago",
+    "read": true
+  }
+]

@@ -1,0 +1,154 @@
+[
+  {
+    "id": "tm1",
+    "name": "Nova Esports",
+    "tag": "NE",
+    "game": "Valorant",
+    "tournament": "t1",
+    "manager": "u1",
+    "status": "approved",
+    "seed": 1,
+    "players": [
+      {
+        "userId": "u2",
+        "name": "Ahmed Raza",
+        "ign": "PhoenixAR#001",
+        "role": "Duelist",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Sara Malik",
+        "ign": "SaraM#999",
+        "role": "Controller",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Hamza Ali",
+        "ign": "HamzaGG#002",
+        "role": "Initiator",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Omar Baig",
+        "ign": "OmarB#007",
+        "role": "Sentinel",
+        "confirmed": false
+      },
+      {
+        "userId": null,
+        "name": "Zain Khan",
+        "ign": "ZainK99#003",
+        "role": "Flex",
+        "confirmed": true
+      }
+    ],
+    "sub": null,
+    "wins": 17,
+    "losses": 5,
+    "winRate": 77,
+    "createdAt": "2025-01-20T00:00:00.000Z"
+  },
+  {
+    "id": "tm2",
+    "name": "Phoenix Squad",
+    "tag": "PS",
+    "game": "Valorant",
+    "tournament": "t1",
+    "manager": null,
+    "status": "approved",
+    "seed": 8,
+    "players": [
+      {
+        "userId": null,
+        "name": "Bilal Ahmed",
+        "ign": "BilalFPS#001",
+        "role": "Duelist",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Sana Mirza",
+        "ign": "SanaMirza#010",
+        "role": "Controller",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Ali Raza",
+        "ign": "AliRaza01#002",
+        "role": "Initiator",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Fatima K",
+        "ign": "FatimaK#003",
+        "role": "Sentinel",
+        "confirmed": true
+      },
+      {
+        "userId": null,
+        "name": "Umar Farooq",
+        "ign": "UmarFPS#004",
+        "role": "Flex",
+        "confirmed": false
+      }
+    ],
+    "sub": null,
+    "wins": 9,
+    "losses": 11,
+    "winRate": 45,
+    "createdAt": "2025-01-22T00:00:00.000Z"
+  },
+  {
+    "id": "tm3",
+    "name": "Storm Riders",
+    "tag": "SR",
+    "game": "Valorant",
+    "tournament": "t1",
+    "manager": null,
+    "status": "approved",
+    "seed": 3,
+    "players": [],
+    "sub": null,
+    "wins": 14,
+    "losses": 6,
+    "winRate": 70,
+    "createdAt": "2025-01-18T00:00:00.000Z"
+  },
+  {
+    "id": "tm4",
+    "name": "BlazeCore",
+    "tag": "BC",
+    "game": "Valorant",
+    "tournament": "t1",
+    "manager": null,
+    "status": "approved",
+    "seed": 5,
+    "players": [],
+    "sub": null,
+    "wins": 12,
+    "losses": 8,
+    "winRate": 60,
+    "createdAt": "2025-01-19T00:00:00.000Z"
+  },
+  {
+    "id": "tm5",
+    "name": "Cyber Wolves",
+    "tag": "CW",
+    "game": "Valorant",
+    "tournament": "t1",
+    "manager": null,
+    "status": "approved",
+    "seed": 6,
+    "players": [],
+    "sub": null,
+    "wins": 10,
+    "losses": 10,
+    "winRate": 50,
+    "createdAt": "2025-01-21T00:00:00.000Z"
+  }
+]
