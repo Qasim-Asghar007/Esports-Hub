@@ -84,10 +84,9 @@ export function AuthProvider({ children }) {
     const newUser = { ...data.user, stats: ZERO_STATS, isNew: true }
     _persist(newUser, data.token)
 
-    // Show tutorial for brand-new users (unless they've seen it before)
-    if (!localStorage.getItem(TUTORIAL_KEY)) {
-      setShowTutorial(true)
-    }
+    // Always show tutorial for brand-new users upon signup
+    localStorage.removeItem(TUTORIAL_KEY)
+    setShowTutorial(true)
 
     return { data: newUser }
   }, [_persist])

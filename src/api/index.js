@@ -34,8 +34,8 @@ async function request(method, endpoint, body = null) {
   try {
     const res = await fetch(API_BASE_URL + endpoint, opts)
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`)
-    return { data: json, error: null }
+    if (!res.ok) throw new Error(json.error || json.message || `HTTP ${res.status}`)
+    return { data: json.data !== undefined ? json.data : json, error: null }
   } catch (err) {
     return { data: null, error: err.message }
   }

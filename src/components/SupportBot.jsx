@@ -178,7 +178,7 @@ export default function SupportBot() {
         aria-label="Support chat"
         style={{
           position: 'fixed',
-          bottom: 88,   // above FAB
+          bottom: 32,   // below FAB
           right: 24,
           width: 52, height: 52,
           borderRadius: '50%',

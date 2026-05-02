@@ -61,7 +61,7 @@ export default function App() {
       <Toast />
       <Routes>
         {/* ── Fully public (no auth needed) ── */}
-        <Route path="/" element={<ErrorBoundary><Landing /></ErrorBoundary>} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* ── Guest-only (redirect if already logged in) ── */}
         <Route path="/login"  element={<GuestRoute><Login /></GuestRoute>} />

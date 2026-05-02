@@ -724,7 +724,7 @@ h4 { font-size: 1.05rem; }
    ============================================================ */
 .fab-container {
   position: fixed;
-  bottom: var(--space-8);
+  bottom: 104px;
   right: var(--space-8);
   z-index: var(--z-fab);
   display: flex;
