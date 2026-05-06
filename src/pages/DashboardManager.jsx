@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
-import FAB from '../components/FAB'
 import Countdown from '../components/Countdown'
 import Alert from '../components/Alert'
 import Skeleton from '../components/Skeleton'
@@ -46,12 +45,6 @@ export default function DashboardManager() {
 
   if (pageLoading) return <><Header /><Skeleton.Dashboard /></>
 
-  const fabActions = [
-    { label:'Register Team',  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>, onClick: () => navigate('/register-team') },
-    { label:'Manage Roster',  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, onClick: () => navigate('/roster') },
-    { label:'View Bracket',   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>, onClick: () => navigate('/bracket') },
-  ]
-
   return (
     <>
       <Header />
@@ -65,7 +58,7 @@ export default function DashboardManager() {
               <h1 style={{fontFamily:'Rajdhani,sans-serif',textTransform:'uppercase',fontSize:'clamp(1.5rem,4vw,2.25rem)'}}>Welcome back, {firstName}</h1>
               <p className="text-secondary" style={{marginTop:4}}>Spring University Cup 2025 · Registration closes May 8</p>
             </div>
-            <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <div className="page-header-btns" style={{display:'flex',gap:12,flexWrap:'wrap'}}>
               <Link to="/register-team" className="btn btn--primary btn--lg">Register Team</Link>
               <Link to="/tournaments"   className="btn btn--secondary btn--lg">Browse Tournaments</Link>
             </div>
@@ -209,7 +202,6 @@ export default function DashboardManager() {
 
         </div>
       </div>
-      <FAB actions={fabActions} />
     </>
   )
 }

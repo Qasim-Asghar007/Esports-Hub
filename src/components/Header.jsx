@@ -36,19 +36,27 @@ export default function Header() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [notifOpen,    setNotifOpen]    = useState(false)
   const [helpOpen,     setHelpOpen]     = useState(false)
+  const [mobileNavOpen,setMobileNavOpen]= useState(false)
   const [notifications, setNotifications] = useState(MockDB._notifications)
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
   const dropRef   = useRef(null)
+  const notifRef  = useRef(null)
   const searchRef = useRef(null)
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click or Escape
   useEffect(() => {
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) setDropdownOpen(false)
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
       if (searchRef.current && !searchRef.current.contains(e.target)) setShowSearch(false)
     }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setDropdownOpen(false); setNotifOpen(false); setMobileNavOpen(false) }
+    }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', onKey) }
   }, [])
 
   // Search
@@ -161,10 +169,66 @@ export default function Header() {
                 </div>
 
                 {/* Notifications */}
-                <button className="nav__icon-btn" onClick={() => setNotifOpen(true)} title="Notifications" aria-label="Notifications">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                  {unreadCount > 0 && <span className="badge-dot" />}
-                </button>
+                <div style={{position:'relative'}} ref={notifRef}>
+                  <button
+                    className="nav__icon-btn"
+                    onClick={() => setNotifOpen(o => !o)}
+                    title="Notifications"
+                    aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                    aria-expanded={notifOpen}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                    {unreadCount > 0 && <span className="badge-dot" />}
+                  </button>
+                  {notifOpen && (
+                    <div className="notif-dropdown">
+                      <div className="notif-dropdown__header">
+                        <span className="notif-dropdown__title">Notifications</span>
+                        {unreadCount > 0 && <span className="badge badge--danger" style={{fontSize:'.7rem'}}>{unreadCount} unread</span>}
+                        <button
+                          onClick={() => setShowUnreadOnly(v => !v)}
+                          className={`notif-dropdown__filter ${showUnreadOnly ? 'active' : ''}`}
+                        >
+                          Unread only
+                        </button>
+                      </div>
+                      <div className="notif-dropdown__list">
+                        {(() => {
+                          const filtered = showUnreadOnly ? notifications.filter(n => !n.read) : notifications
+                          if (filtered.length === 0) return (
+                            <div style={{padding:'24px 16px',textAlign:'center',color:'var(--text-muted)',fontSize:'.85rem'}}>
+                              {showUnreadOnly ? 'No unread notifications' : 'No notifications'}
+                            </div>
+                          )
+                          return filtered.map((n, idx) => (
+                            <div key={n.id}>
+                              {idx > 0 && <div style={{height:1,background:'var(--border)',margin:'0 16px'}} />}
+                              <div
+                                className={`notif-item ${!n.read ? 'unread' : ''}`}
+                                onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read:true} : x))}
+                              >
+                                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,flexShrink:0,paddingTop:2}}>
+                                  <div className={`notif-item__dot ${n.read ? 'notif-item__dot--read' : ''}`}/>
+                                </div>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div className="notif-item__text" dangerouslySetInnerHTML={{__html: n.message}}/>
+                                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:4}}>
+                                    <div className="notif-item__time">{n.time}</div>
+                                    {!n.read && <span style={{fontSize:'.68rem',fontWeight:600,color:'var(--accent)',letterSpacing:'.04em'}}>NEW</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                      <div className="notif-dropdown__footer">
+                        <button className="btn btn--ghost btn--sm" onClick={markAllRead}>Mark all read</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setNotifOpen(false)}>Close</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Help */}
                 <button className="nav__icon-btn" onClick={() => setHelpOpen(true)} title="Help" aria-label="Help">
@@ -214,45 +278,87 @@ export default function Header() {
                 <Link to="/signup" className="btn btn--primary btn--sm">Sign Up</Link>
               </>
             )}
+
+            {/* Hamburger — visible only on mobile via CSS */}
+            <button
+              className="nav__hamburger"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={mobileNavOpen}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
           </div>
         </nav>
       </header>
 
-      {/* Notifications Modal */}
-      <Modal
-        open={notifOpen}
-        onClose={() => setNotifOpen(false)}
-        title="Notifications"
-        size="sm"
-        footer={
-          <div style={{display:'flex',justifyContent:'space-between',width:'100%'}}>
-            <button className="btn btn--ghost btn--sm" onClick={markAllRead}>Mark all read</button>
-            <button className="btn btn--ghost btn--sm" onClick={() => setNotifOpen(false)}>Close</button>
-          </div>
-        }
-      >
-        {unreadCount > 0 && (
-          <div style={{marginBottom:8}}><span className="badge badge--danger">{unreadCount} new</span></div>
-        )}
-        <div style={{maxHeight:360,overflowY:'auto',margin:'0 -24px'}}>
-          {notifications.length === 0
-            ? <div className="empty-state" style={{padding:'32px 16px'}}><div className="empty-state__desc">No notifications</div></div>
-            : notifications.map(n => (
-              <div
-                key={n.id}
-                className={`notif-item ${!n.read ? 'unread' : ''}`}
-                onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read:true} : x))}
-              >
-                <div className={`notif-item__dot ${n.read ? 'notif-item__dot--read' : ''}`}/>
-                <div>
-                  <div className="notif-item__text" dangerouslySetInnerHTML={{__html: n.message}}/>
-                  <div className="notif-item__time">{n.time}</div>
-                </div>
+      {/* Mobile Nav Drawer */}
+      {mobileNavOpen && (
+        <div className="mobile-nav-overlay open" onClick={e => { if (e.target === e.currentTarget) setMobileNavOpen(false) }}>
+          <div className="mobile-nav-panel">
+            <div className="mobile-nav-header">
+              <span>Menu</span>
+              <button className="nav__icon-btn" onClick={() => setMobileNavOpen(false)} aria-label="Close menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {isLoggedIn && user && (
+              <div className="mobile-nav-user">
+                <div className="mobile-nav-user__name">{user.name}</div>
+                <div className="mobile-nav-user__email">{user.email} · {user.role}</div>
               </div>
-            ))
-          }
+            )}
+
+            <div className="mobile-nav-links">
+              {NAV_LINKS.map(l => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className={`mobile-nav-link ${loc.pathname === l.to ? 'active' : ''}`}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  {l.label}
+                </Link>
+              ))}
+
+              {isLoggedIn && user && (
+                <>
+                  <div className="mobile-nav-divider" />
+                  <Link to={dashHref(user.role)} className="mobile-nav-link" onClick={() => setMobileNavOpen(false)}>
+                    Dashboard
+                  </Link>
+                  <Link to="/profile" className="mobile-nav-link" onClick={() => setMobileNavOpen(false)}>
+                    My Profile
+                  </Link>
+                  <div className="mobile-nav-divider" />
+                  <div style={{padding:'8px 14px',fontSize:'.75rem',color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>Switch Role</div>
+                  {['player','manager','organizer'].map(r => (
+                    <button
+                      key={r}
+                      className={`mobile-nav-link ${user.role === r ? 'active' : ''}`}
+                      onClick={() => { handleRoleSwitch(r); setMobileNavOpen(false) }}
+                    >
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                      {user.role === r && <span style={{marginLeft:'auto',fontSize:'.7rem',background:'var(--accent)',color:'var(--bg-0)',padding:'1px 6px',borderRadius:4}}>Active</span>}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {isLoggedIn && (
+              <div className="mobile-nav-footer">
+                <button className="btn btn--ghost btn--sm btn--full" style={{justifyContent:'center',color:'var(--danger)'}} onClick={() => { handleLogout(); setMobileNavOpen(false) }}>
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </Modal>
+      )}
 
       {/* Help Modal */}
       <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title={`Quick Help — ${user?.role || 'Guide'}`} size="sm">

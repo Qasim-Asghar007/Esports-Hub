@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
-import FAB from '../components/FAB'
 import Alert from '../components/Alert'
 import Modal from '../components/Modal'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
+import { useAnnouncement } from '../context/AnnouncementContext'
 import { MockDB } from '../api/index'
+
+const ANN_TYPES = [
+  { id:'maintenance', label:'Maintenance', icon:'🔧', desc:'Scheduled downtime or server work' },
+  { id:'info',        label:'Announcement', icon:'📢', desc:'General info for all players' },
+  { id:'warning',     label:'Warning',      icon:'⚠️',  desc:'Urgent notice requiring attention' },
+  { id:'update',      label:'Notice',       icon:'🕐', desc:'Schedule change or time update' },
+]
 
 const PENDING_RESULTS = [
   { id:'r1', match:'Nova Esports vs Phoenix Squad', stage:'QF', submittedBy:'Ahmed Raza', time:'5 min ago', winner:'Nova Esports', score:'2–0', evidence:true },
@@ -18,12 +25,19 @@ const TEAM_APPROVALS = [
   { id:'t2', name:'Iron Wolves',    game:'CS2',      captain:'Sana Mirza',  players:4, submitted:'May 1'  },
 ]
 
+const EMPTY_ANN = { title:'', message:'', type:'maintenance', startTime:'', endTime:'' }
+
 export default function DashboardOrganizer() {
   const { user } = useAuth()
   const toast    = useToast()
   const navigate = useNavigate()
+  const { announcement, publish, clear: clearAnn } = useAnnouncement()
+
+  const [annForm,      setAnnForm]      = useState(EMPTY_ANN)
+  const [annErrors,    setAnnErrors]    = useState({})
 
   const [verifyModal,  setVerifyModal]  = useState(null)  // result object
+  const [rejectConfirm,setRejectConfirm]= useState(null)  // { type:'result'|'team', id, name }
   const [undoTimer,    setUndoTimer]    = useState(null)   // { id, timeout }
   const [verified,     setVerified]     = useState([])
   const [rejected,     setRejected]     = useState([])
@@ -58,17 +72,40 @@ export default function DashboardOrganizer() {
   }
   const handleRejectTeam = (id) => {
     setRejectedTeams(r => [...r, id])
+    setRejectConfirm(null)
     toast.error('Team rejected', 'The team manager has been notified.')
+  }
+
+  const handlePublishAnn = () => {
+    const e = {}
+    if (!annForm.title.trim()) e.title = 'Title is required'
+    if (!annForm.type)         e.type  = 'Select a type'
+    setAnnErrors(e)
+    if (Object.keys(e).length) return
+    publish({ ...annForm, createdBy: user?.name })
+    toast.success('Announcement published!', 'All users will see it at the top of every page.')
+    setAnnForm(EMPTY_ANN)
+    setAnnErrors({})
+  }
+
+  const handleClearAnn = () => {
+    clearAnn()
+    toast.info('Announcement cleared', 'The banner has been removed for all users.')
+  }
+
+  const confirmReject = () => {
+    if (!rejectConfirm) return
+    if (rejectConfirm.type === 'result') {
+      setRejected(x => [...x, rejectConfirm.id])
+      setRejectConfirm(null)
+      toast.error('Result rejected', 'The submitting team has been notified.')
+    } else {
+      handleRejectTeam(rejectConfirm.id)
+    }
   }
 
   const pendingCount  = PENDING_RESULTS.filter(r => !verified.includes(r.id) && !rejected.includes(r.id)).length
   const approvalCount = TEAM_APPROVALS.filter(t => !approvedTeams.includes(t.id) && !rejectedTeams.includes(t.id)).length
-
-  const fabActions = [
-    { label:'Create Tournament', icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>, onClick: () => navigate('/tournaments') },
-    { label:'View Bracket',      icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>, onClick: () => navigate('/bracket') },
-    { label:'Schedule',          icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, onClick: () => navigate('/schedule') },
-  ]
 
   return (
     <>
@@ -83,7 +120,7 @@ export default function DashboardOrganizer() {
               <h1 style={{fontFamily:'Rajdhani,sans-serif',textTransform:'uppercase',fontSize:'clamp(1.5rem,4vw,2.25rem)'}}>Welcome back, {firstName}</h1>
               <p className="text-secondary" style={{marginTop:4}}>Spring University Cup 2025 · Quarterfinal Stage</p>
             </div>
-            <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <div className="page-header-btns" style={{display:'flex',gap:12,flexWrap:'wrap'}}>
               <Link to="/tournaments" className="btn btn--secondary btn--lg">Manage Tournaments</Link>
               <Link to="/bracket"     className="btn btn--ghost btn--lg">View Bracket</Link>
             </div>
@@ -154,7 +191,7 @@ export default function DashboardOrganizer() {
                           <>
                             <button className="btn btn--accent btn--sm" onClick={() => setVerifyModal(r)}>Verify Result</button>
                             <button className="btn btn--ghost btn--sm" onClick={() => navigate('/schedule')}>Review Details</button>
-                            <button className="btn btn--ghost btn--sm" style={{color:'var(--danger)',marginLeft:'auto'}} onClick={() => { setRejected(x=>[...x,r.id]); toast.error('Result rejected','The submitting team has been notified.') }}>Reject</button>
+                            <button className="btn btn--ghost btn--sm" style={{color:'var(--danger)',marginLeft:'auto'}} onClick={() => setRejectConfirm({ type:'result', id:r.id, name:r.match })}>Reject</button>
                           </>
                         )}
                       </div>
@@ -197,12 +234,138 @@ export default function DashboardOrganizer() {
                       {!isApproved && !isRejected && (
                         <div style={{display:'flex',gap:8}}>
                           <button className="btn btn--accent btn--sm" onClick={() => handleApproveTeam(t.id)}>Approve</button>
-                          <button className="btn btn--ghost btn--sm" style={{color:'var(--danger)'}} onClick={() => handleRejectTeam(t.id)}>Reject</button>
+                          <button className="btn btn--ghost btn--sm" style={{color:'var(--danger)'}} onClick={() => setRejectConfirm({ type:'team', id:t.id, name:t.name })}>Reject</button>
                         </div>
                       )}
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Announcement Composer ── */}
+          <div style={{marginBottom:32}}>
+            <div className="section-header" style={{marginBottom:16}}>
+              <div className="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{color:'#d97706'}}>
+                  <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+                </svg>
+                Broadcast Announcement
+              </div>
+              {announcement?.active && (
+                <span className="badge" style={{background:'rgba(217,119,6,.15)',color:'#d97706',border:'1px solid rgba(217,119,6,.3)'}}>
+                  1 Active
+                </span>
+              )}
+            </div>
+
+            {/* Active announcement preview */}
+            {announcement?.active && (
+              <div style={{marginBottom:16,padding:16,background:'rgba(245,158,11,.08)',border:'2px solid rgba(245,158,11,.3)',borderRadius:'var(--radius-lg)',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div>
+                  <div style={{fontSize:'.75rem',fontWeight:700,color:'#d97706',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Currently Live</div>
+                  <div style={{fontWeight:700,color:'var(--text-primary)'}}>{announcement.title}</div>
+                  {announcement.message && <div style={{fontSize:'.85rem',color:'var(--text-secondary)',marginTop:4}}>{announcement.message}</div>}
+                </div>
+                <button className="btn btn--ghost btn--sm" style={{color:'var(--danger)',flexShrink:0}} onClick={handleClearAnn}>Clear</button>
+              </div>
+            )}
+
+            <div className="card card__body">
+              {/* Type selector */}
+              <div style={{marginBottom:20}}>
+                <div className="form-label" style={{marginBottom:8}}>Announcement Type</div>
+                <div className="ann-type-grid">
+                  {ANN_TYPES.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`ann-type-btn ${annForm.type === t.id ? 'active' : ''}`}
+                      onClick={() => setAnnForm(f => ({ ...f, type: t.id }))}
+                      title={t.desc}
+                    >
+                      <span className="ann-type-btn__icon">{t.icon}</span>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {annErrors.type && <div className="form-error" style={{display:'block',marginTop:6}}>{annErrors.type}</div>}
+              </div>
+
+              {/* Title */}
+              <div className={`form-group ${annErrors.title ? 'has-error' : ''}`} style={{marginBottom:16}}>
+                <label className="form-label">Title <span style={{color:'var(--danger)'}}>*</span></label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Scheduled Server Maintenance"
+                  value={annForm.title}
+                  onChange={e => setAnnForm(f => ({ ...f, title: e.target.value }))}
+                  maxLength={80}
+                />
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+                  {annErrors.title
+                    ? <div className="form-error" style={{display:'block'}}>{annErrors.title}</div>
+                    : <div className="form-hint">Shown in bold in the banner</div>
+                  }
+                  <span style={{fontSize:'.72rem',color:'var(--text-faint)'}}>{annForm.title.length}/80</span>
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className="form-group" style={{marginBottom:16}}>
+                <label className="form-label">Message <span style={{color:'var(--text-muted)',fontWeight:400}}>(optional)</span></label>
+                <textarea
+                  className="form-input"
+                  placeholder="e.g. Servers will be unavailable for 2 hours. Save your work beforehand."
+                  value={annForm.message}
+                  onChange={e => setAnnForm(f => ({ ...f, message: e.target.value }))}
+                  rows={2}
+                  maxLength={200}
+                  style={{resize:'vertical',minHeight:64}}
+                />
+                <div style={{display:'flex',justifyContent:'flex-end',marginTop:4}}>
+                  <span style={{fontSize:'.72rem',color:'var(--text-faint)'}}>{annForm.message.length}/200</span>
+                </div>
+              </div>
+
+              {/* Time range */}
+              <div className="form-row" style={{marginBottom:20}}>
+                <div className="form-group" style={{margin:0}}>
+                  <label className="form-label">Start Time <span style={{color:'var(--text-muted)',fontWeight:400}}>(optional)</span></label>
+                  <input
+                    className="form-input"
+                    type="datetime-local"
+                    value={annForm.startTime}
+                    onChange={e => setAnnForm(f => ({ ...f, startTime: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group" style={{margin:0}}>
+                  <label className="form-label">End Time <span style={{color:'var(--text-muted)',fontWeight:400}}>(optional)</span></label>
+                  <input
+                    className="form-input"
+                    type="datetime-local"
+                    value={annForm.endTime}
+                    onChange={e => setAnnForm(f => ({ ...f, endTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <button
+                  className="btn btn--primary btn--sm"
+                  style={{background:'#d97706',borderColor:'#d97706'}}
+                  onClick={handlePublishAnn}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{marginRight:6}}><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+                  Publish Announcement
+                </button>
+                {(annForm.title || annForm.message) && (
+                  <button className="btn btn--ghost btn--sm" onClick={() => { setAnnForm(EMPTY_ANN); setAnnErrors({}) }}>
+                    Reset Form
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -284,7 +447,32 @@ export default function DashboardOrganizer() {
         )}
       </Modal>
 
-      <FAB actions={fabActions} />
+      {/* Reject Confirmation Modal */}
+      <Modal
+        open={!!rejectConfirm}
+        onClose={() => setRejectConfirm(null)}
+        title="Confirm Rejection"
+        size="sm"
+        footer={
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn btn--ghost btn--sm" onClick={() => setRejectConfirm(null)}>Cancel</button>
+            <button className="btn btn--danger btn--sm" onClick={confirmReject}>Yes, Reject</button>
+          </div>
+        }
+      >
+        {rejectConfirm && (
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <Alert type="danger" title="Are you sure?">
+              This action cannot be undone. The {rejectConfirm.type === 'result' ? 'submitting team' : 'team manager'} will be notified.
+            </Alert>
+            <div style={{padding:14,background:'var(--bg-3)',borderRadius:'var(--radius)',fontSize:'.875rem'}}>
+              <span style={{color:'var(--text-muted)'}}>Rejecting: </span>
+              <strong>{rejectConfirm.name}</strong>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </>
   )
 }

@@ -162,7 +162,7 @@ export default function TournamentDetail() {
                   <div style={{fontWeight:700,marginBottom:12,fontSize:'.9rem',textTransform:'uppercase',letterSpacing:'.05em',color:'var(--text-muted)'}}>Latest Results</div>
                   {MockDB._matches.slice(0,3).map(m => (
                     <div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:'.8rem'}}>
-                      <span style={{color:'var(--text-muted)'}}>{m.teamA} vs {m.teamB}</span>
+                      <span style={{color:'var(--text-muted)'}}>{m.team1?.name || m.teamA || 'TBD'} vs {m.team2?.name || m.teamB || 'TBD'}</span>
                       <span className={`badge badge--${m.status === 'completed' ? 'accent' : 'blue'}`}>{m.status === 'completed' ? m.score || 'Completed' : m.status}</span>
                     </div>
                   ))}
@@ -214,7 +214,7 @@ export default function TournamentDetail() {
                     <tbody>
                       {MockDB._matches.map(m => (
                         <tr key={m.id} style={{cursor:'pointer'}} onClick={() => navigate(`/match/${m.id}`)}>
-                          <td><strong>{m.teamA}</strong> vs <strong>{m.teamB}</strong></td>
+                          <td><strong>{m.team1?.name || m.teamA || 'TBD'}</strong> vs <strong>{m.team2?.name || m.teamB || 'TBD'}</strong></td>
                           <td>{m.stage || 'Quarterfinal'}</td>
                           <td style={{color:'var(--text-muted)'}}>{m.scheduledAt ? new Date(m.scheduledAt).toLocaleString() : 'TBD'}</td>
                           <td><span className={`badge badge--${m.status==='completed'?'accent':m.status==='live'?'live':'blue'}`}>{m.status}</span></td>

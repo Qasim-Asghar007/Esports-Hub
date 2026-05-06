@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
-import FAB from '../components/FAB'
 import Countdown from '../components/Countdown'
 import Alert from '../components/Alert'
 import Modal from '../components/Modal'
@@ -45,12 +44,6 @@ export default function DashboardPlayer() {
     toast.success('Attendance confirmed!', 'Your team manager has been notified.')
   }
 
-  const fabActions = [
-    { label:'Confirm Attendance', icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>, onClick: handleConfirm },
-    { label:'View Bracket',       icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>, onClick: () => navigate('/bracket') },
-    { label:'My Profile',         icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, onClick: () => navigate('/profile') },
-  ]
-
   return (
     <>
       <Header />
@@ -64,7 +57,7 @@ export default function DashboardPlayer() {
               <h1 style={{fontFamily:'Rajdhani,sans-serif',textTransform:'uppercase',fontSize:'clamp(1.5rem,4vw,2.25rem)'}}>Welcome back, {firstName}</h1>
               <p className="text-secondary" style={{marginTop:4}}>Spring University Cup 2025 · Quarterfinals</p>
             </div>
-            <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <div className="page-header-btns" style={{display:'flex',gap:12,flexWrap:'wrap'}}>
               <Link to="/schedule"    className="btn btn--secondary btn--lg">My Schedule</Link>
               <Link to="/leaderboard" className="btn btn--ghost btn--lg">Leaderboard</Link>
             </div>
@@ -264,7 +257,6 @@ export default function DashboardPlayer() {
         </div>
       </Modal>
 
-      <FAB actions={fabActions} />
     </>
   )
 }

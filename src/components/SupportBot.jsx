@@ -160,12 +160,35 @@ export default function SupportBot() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  // Format bot text: bold **text**, code `text`, line breaks
   const formatText = (text) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code style="background:var(--bg-4);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:.8em">$1</code>')
-      .replace(/\n/g, '<br/>')
+    const lines = text.split('\n')
+    let html = ''
+    let inList = false
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i]
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary);font-weight:700">$1</strong>')
+        .replace(/`([^`]+)`/g, '<code style="background:var(--bg-4);padding:1px 6px;border-radius:4px;font-family:JetBrains Mono,monospace;font-size:.78em;color:var(--accent)">$1</code>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+
+      const isBullet = /^[-•*]\s+/.test(lines[i])
+      const isNumbered = /^\d+\.\s+/.test(lines[i])
+
+      if (isBullet || isNumbered) {
+        if (!inList) { html += '<ul style="margin:6px 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:4px">'; inList = true }
+        const content = isBullet ? line.replace(/^[-•*]\s+/, '') : line.replace(/^\d+\.\s+/, '')
+        html += `<li style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0;margin-top:1px">›</span><span>${content}</span></li>`
+      } else {
+        if (inList) { html += '</ul>'; inList = false }
+        if (line.trim() === '') {
+          html += '<div style="height:6px"></div>'
+        } else {
+          html += `<span>${line}</span><br/>`
+        }
+      }
+    }
+    if (inList) html += '</ul>'
+    return html
   }
 
   if (!isLoggedIn) return null   // only show when logged in
@@ -178,7 +201,7 @@ export default function SupportBot() {
         aria-label="Support chat"
         style={{
           position: 'fixed',
-          bottom: 32,   // below FAB
+          bottom: 32,
           right: 24,
           width: 52, height: 52,
           borderRadius: '50%',
@@ -190,10 +213,16 @@ export default function SupportBot() {
           boxShadow: '0 4px 20px rgba(0,0,0,.4)',
           transition: 'all var(--t-fast)',
           zIndex: 900,
-          fontSize: open ? '1.1rem' : '1.3rem',
+          padding: 0,
+          lineHeight: 1,
         }}
       >
-        {open ? '✕' : (
+        {open ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        ) : (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
@@ -255,16 +284,20 @@ export default function SupportBot() {
                   }}>🤖</div>
                 )}
                 <div style={{
-                  maxWidth: '78%',
-                  padding: '10px 12px',
+                  maxWidth: '80%',
+                  padding: msg.role === 'bot' ? '10px 14px' : '10px 12px',
                   borderRadius: msg.role === 'user'
                     ? 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)'
-                    : 'var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px',
-                  background: msg.role === 'user' ? 'var(--accent)' : 'var(--bg-3)',
-                  color: msg.role === 'user' ? '#000' : 'var(--text-primary)',
-                  fontSize: '.825rem',
-                  lineHeight: 1.5,
+                    : '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+                  background: msg.role === 'user'
+                    ? 'linear-gradient(135deg, var(--accent), var(--accent-dim))'
+                    : 'var(--bg-3)',
+                  color: msg.role === 'user' ? 'var(--bg-0)' : 'var(--text-secondary)',
+                  fontSize: '.82rem',
+                  lineHeight: 1.6,
                   border: msg.role === 'bot' ? '1px solid var(--border)' : 'none',
+                  borderLeft: msg.role === 'bot' ? '2px solid var(--accent)' : undefined,
+                  fontWeight: msg.role === 'user' ? 500 : 400,
                 }}>
                   {msg.role === 'bot'
                     ? <span dangerouslySetInnerHTML={{ __html: formatText(msg.text) }} />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Alert from '../components/Alert'
@@ -26,6 +26,8 @@ export default function RegisterTeam() {
   const [step,     setStep]    = useState(1)
   const [loading,  setLoading] = useState(false)
   const [errors,   setErrors]  = useState({})
+  const [rulesRead, setRulesRead] = useState(false)
+  const rulesRef = useRef(null)
 
   const [form, setForm] = useState({
     tournament: '',
@@ -64,6 +66,8 @@ export default function RegisterTeam() {
         if (!p.name.trim()) e[`p${i}name`] = 'Name required'
         if (!p.ign.trim())  e[`p${i}ign`]  = 'IGN required'
         if (!p.role)        e[`p${i}role`] = 'Role required'
+        if (!p.email.trim())                          e[`p${i}email`] = 'Email required'
+        else if (!p.email.endsWith('@giki.edu.pk'))   e[`p${i}email`] = 'Must use a @giki.edu.pk address'
       })
     }
     if (step === 4 && !form.rulesAccepted) e.rules = 'You must accept the rules.'
@@ -87,8 +91,7 @@ export default function RegisterTeam() {
       toast.error('Registration failed', res.error)
       return
     }
-    toast.success('Team registered!', 'Your team is pending organizer approval and players have been notified.')
-    navigate('/dashboard/manager')
+    navigate('/register-success')
   }
 
   const selectedTournament = MockDB._tournaments.find(t => t.id === form.tournament)
@@ -235,7 +238,7 @@ export default function RegisterTeam() {
                     <div style={{fontWeight:700,fontSize:'.8rem',color:'var(--accent)',marginBottom:12,textTransform:'uppercase'}}>
                       Player {i+1} {i === 0 && <span style={{color:'var(--warn)'}}>· Team Captain</span>}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                    <div className="player-grid" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                       <div className={`form-group ${errors[`p${i}name`] ? 'has-error' : ''}`} style={{margin:0}}>
                         <label className="form-label">Full Name *</label>
                         <input className="form-input" value={player.name} onChange={e => setPlayer(i,'name',e.target.value)} placeholder="Ali Khan" />
@@ -254,9 +257,17 @@ export default function RegisterTeam() {
                         </select>
                         {errors[`p${i}role`] && <div className="form-error" style={{display:'block'}}>{errors[`p${i}role`]}</div>}
                       </div>
-                      <div className="form-group" style={{margin:0}}>
-                        <label className="form-label">Email</label>
-                        <input className="form-input" type="email" value={player.email} onChange={e => setPlayer(i,'email',e.target.value)} placeholder="player@giki.edu.pk" />
+                      <div className={`form-group ${errors[`p${i}email`] ? 'has-error' : ''}`} style={{margin:0}}>
+                        <label className="form-label">Email <span style={{color:'var(--danger)'}}>*</span></label>
+                        <input
+                          className="form-input"
+                          type="email"
+                          value={player.email}
+                          onChange={e => setPlayer(i,'email',e.target.value)}
+                          placeholder="player@giki.edu.pk"
+                          style={errors[`p${i}email`] ? {borderColor:'var(--danger)'} : {}}
+                        />
+                        {errors[`p${i}email`] && <div className="form-error" style={{display:'block'}}>{errors[`p${i}email`]}</div>}
                       </div>
                     </div>
                   </div>
@@ -287,7 +298,14 @@ export default function RegisterTeam() {
                   <h2 style={{marginBottom:4}}>Tournament Rules</h2>
                   <p className="text-secondary">Read and accept the rules before proceeding.</p>
                 </div>
-                <div style={{maxHeight:320,overflowY:'auto',padding:16,background:'var(--bg-3)',borderRadius:'var(--radius)',border:'1px solid var(--border)',fontSize:'.875rem',lineHeight:1.7,color:'var(--text-secondary)'}}>
+                <div
+                  ref={rulesRef}
+                  onScroll={() => {
+                    const el = rulesRef.current
+                    if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 10) setRulesRead(true)
+                  }}
+                  style={{maxHeight:320,overflowY:'auto',padding:16,background:'var(--bg-3)',borderRadius:'var(--radius)',border:`1px solid ${rulesRead ? 'var(--accent)' : 'var(--border)'}`,fontSize:'.875rem',lineHeight:1.7,color:'var(--text-secondary)',transition:'border-color .2s'}}
+                >
                   {[
                     ['Eligibility', 'All players must be currently enrolled university students with valid student ID. Players may only represent one team per tournament.'],
                     ['Team Composition', 'Teams must have exactly 5 core players registered before the deadline. One optional substitute may be added. No last-minute roster changes are allowed.'],
@@ -303,12 +321,19 @@ export default function RegisterTeam() {
                     </div>
                   ))}
                 </div>
+                {!rulesRead && (
+                  <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'rgba(255,181,71,.08)',border:'1px solid rgba(255,181,71,.2)',borderRadius:'var(--radius-sm)',fontSize:'.8rem',color:'var(--warn)'}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                    Scroll through the rules to enable the checkbox
+                  </div>
+                )}
                 {errors.rules && <Alert type="danger">{errors.rules}</Alert>}
-                <label style={{display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer'}}>
+                <label style={{display:'flex',alignItems:'flex-start',gap:12,cursor: rulesRead ? 'pointer' : 'not-allowed',opacity: rulesRead ? 1 : 0.5}}>
                   <input
                     type="checkbox"
                     checked={form.rulesAccepted}
-                    onChange={e => set('rulesAccepted', e.target.checked)}
+                    onChange={e => rulesRead && set('rulesAccepted', e.target.checked)}
+                    disabled={!rulesRead}
                     style={{marginTop:3,accentColor:'var(--accent)',width:16,height:16,flexShrink:0}}
                   />
                   <span style={{fontSize:'.875rem',lineHeight:1.5}}>

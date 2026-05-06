@@ -11,6 +11,7 @@ import DashboardOrganizer from './pages/DashboardOrganizer'
 import Tournaments      from './pages/Tournaments'
 import TournamentDetail from './pages/TournamentDetail'
 import RegisterTeam     from './pages/RegisterTeam'
+import RegistrationSuccess from './pages/RegistrationSuccess'
 import Bracket          from './pages/Bracket'
 import MatchDetail      from './pages/MatchDetail'
 import ResultEntry      from './pages/ResultEntry'
@@ -20,6 +21,7 @@ import Leaderboard      from './pages/Leaderboard'
 import Schedule         from './pages/Schedule'
 import NotFound         from './pages/NotFound'
 import Toast            from './components/Toast'
+import AnnouncementBanner from './components/AnnouncementBanner'
 
 /* ── Protected route wrapper ─────────────────────────────────────────── */
 function ProtectedRoute({ children, role }) {
@@ -59,6 +61,7 @@ export default function App() {
   return (
     <>
       <Toast />
+      <AnnouncementBanner />
       <Routes>
         {/* ── Fully public (no auth needed) ── */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -84,6 +87,9 @@ export default function App() {
         }/>
         <Route path="/roster" element={
           <ProtectedRoute><Roster /></ProtectedRoute>
+        }/>
+        <Route path="/register-success" element={
+          <ProtectedRoute><RegistrationSuccess /></ProtectedRoute>
         }/>
 
         {/* ── Protected — Organizer ── */}

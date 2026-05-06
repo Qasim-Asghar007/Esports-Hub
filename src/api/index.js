@@ -37,6 +37,7 @@ async function request(method, endpoint, body = null) {
     if (!res.ok) throw new Error(json.error || json.message || `HTTP ${res.status}`)
     return { data: json.data !== undefined ? json.data : json, error: null }
   } catch (err) {
+    if (import.meta.env.DEV) return MockDB.handle(method, endpoint, body)
     return { data: null, error: err.message }
   }
 }
@@ -193,6 +194,16 @@ export const MockDB = {
       if (!seg[2]) {
         if (method === 'GET') return t ? { data: { ...t }, error: null } : { data: null, error: 'Not found' }
         if (method === 'PUT') { Object.assign(t, body); return { data: { ...t }, error: null } }
+      }
+    }
+    if (path === '/teams') {
+      if (method === 'GET') return { data: [...this._teams], error: null }
+      if (method === 'POST') {
+        const team = { id: 'tm' + Date.now(), status: 'pending', ...body }
+        this._teams.push(team)
+        const t = this._tournaments.find(x => x.id === body.tournament)
+        if (t) t.registeredTeams = (t.registeredTeams || 0) + 1
+        return { data: team, error: null }
       }
     }
     if (path === '/matches') return { data: [...this._matches], error: null }
