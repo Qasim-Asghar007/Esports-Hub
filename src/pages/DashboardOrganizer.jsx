@@ -338,6 +338,7 @@ export default function DashboardOrganizer() {
                     type="datetime-local"
                     value={annForm.startTime}
                     onChange={e => setAnnForm(f => ({ ...f, startTime: e.target.value }))}
+                    onClick={e => { try { e.target.showPicker() } catch {} }}
                   />
                 </div>
                 <div className="form-group" style={{margin:0}}>
@@ -347,6 +348,7 @@ export default function DashboardOrganizer() {
                     type="datetime-local"
                     value={annForm.endTime}
                     onChange={e => setAnnForm(f => ({ ...f, endTime: e.target.value }))}
+                    onClick={e => { try { e.target.showPicker() } catch {} }}
                   />
                 </div>
               </div>
