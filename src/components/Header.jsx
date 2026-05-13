@@ -37,7 +37,7 @@ export default function Header() {
   const [notifOpen,    setNotifOpen]    = useState(false)
   const [helpOpen,     setHelpOpen]     = useState(false)
   const [mobileNavOpen,setMobileNavOpen]= useState(false)
-  const [notifications, setNotifications] = useState(MockDB._notifications)
+  const [notifications, setNotifications] = useState(() => MockDB.notificationsFor(user))
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
   const dropRef   = useRef(null)
@@ -59,6 +59,11 @@ export default function Header() {
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', onKey) }
   }, [])
 
+  useEffect(() => {
+    setNotifications(MockDB.notificationsFor(user))
+    setShowUnreadOnly(false)
+  }, [user?.id, user?.role])
+
   // Search
   const handleSearch = (q) => {
     setSearchQ(q)
@@ -73,6 +78,10 @@ export default function Header() {
   const unreadCount = notifications.filter(n => !n.read).length
 
   const markAllRead = () => {
+    const visibleIds = new Set(notifications.map(n => n.id))
+    MockDB._notifications.forEach(n => {
+      if (visibleIds.has(n.id)) n.read = true
+    })
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
     toast.success('Done', 'All notifications marked as read')
     setNotifOpen(false)
@@ -205,7 +214,11 @@ export default function Header() {
                               {idx > 0 && <div style={{height:1,background:'var(--border)',margin:'0 16px'}} />}
                               <div
                                 className={`notif-item ${!n.read ? 'unread' : ''}`}
-                                onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read:true} : x))}
+                                onClick={() => {
+                                  const stored = MockDB._notifications.find(x => x.id === n.id)
+                                  if (stored) stored.read = true
+                                  setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read:true} : x))
+                                }}
                               >
                                 <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,flexShrink:0,paddingTop:2}}>
                                   <div className={`notif-item__dot ${n.read ? 'notif-item__dot--read' : ''}`}/>

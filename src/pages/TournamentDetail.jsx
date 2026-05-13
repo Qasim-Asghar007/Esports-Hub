@@ -18,19 +18,45 @@ const GAME_COLORS = {
 
 const TABS = ['overview','bracket','teams','schedule','rules']
 
+const formatScore = (score) => {
+  if (!score) return 'Completed'
+  if (typeof score === 'string') return score
+  if (typeof score === 'object') {
+    const left = score.team1 ?? score.teamA ?? 0
+    const right = score.team2 ?? score.teamB ?? 0
+    return `${left}-${right}`
+  }
+  return String(score)
+}
+
 export default function TournamentDetail() {
   const { id }     = useParams()
   const navigate   = useNavigate()
   const toast      = useToast()
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, user } = useAuth()
 
   const [tab,        setTab]        = useState('overview')
   const [registered, setRegistered] = useState(false)
 
   const tournament = MockDB._tournaments.find(t => t.id === id) || MockDB._tournaments[0]
   const colors     = GAME_COLORS[tournament.game] || { from:'#00e5a0', to:'#00b37a' }
-  const pct        = Math.round((tournament.registered / tournament.maxTeams) * 100)
-  const isLive     = tournament.status === 'live'
+  const registeredTeams = tournament.registeredTeams ?? tournament.registered ?? 0
+  const startDate = tournament.startDate ?? tournament.date
+  const endDate = tournament.endDate
+  const deadline = tournament.registrationDeadline ?? tournament.deadline
+  const prizePool = tournament.prizePool ?? tournament.prize
+  const tournamentTeams = MockDB._teams.filter(team => (team.tournamentId ?? team.tournament) === tournament.id)
+  const tournamentMatches = MockDB._matches.filter(match => (match.tournamentId ?? match.tournament) === tournament.id)
+  const displayTeams = tournamentTeams.length
+    ? tournamentTeams
+    : Array.from({ length: Math.min(registeredTeams, 6) }, (_, i) => ({
+      id: `${tournament.id}-seed-${i + 1}`,
+      name: `${tournament.game} Seed ${i + 1}`,
+      status: 'approved',
+      roster: Array.from({ length: tournament.teamSize || 5 }),
+    }))
+  const pct        = Math.round((registeredTeams / tournament.maxTeams) * 100)
+  const isLive     = tournament.status === 'live' || tournament.status === 'active'
 
   const handleRegister = () => {
     if (!isLoggedIn) { navigate('/login'); return }
@@ -40,9 +66,9 @@ export default function TournamentDetail() {
   }
 
   const PRIZE_SPLITS = [
-    { place:'🥇 1st Place', prize: tournament.prize ? `PKR ${Math.round(parseInt(tournament.prize.replace(/\D/g,'')) * 0.5).toLocaleString()}` : 'TBA' },
-    { place:'🥈 2nd Place', prize: tournament.prize ? `PKR ${Math.round(parseInt(tournament.prize.replace(/\D/g,'')) * 0.3).toLocaleString()}` : 'TBA' },
-    { place:'🥉 3rd Place', prize: tournament.prize ? `PKR ${Math.round(parseInt(tournament.prize.replace(/\D/g,'')) * 0.2).toLocaleString()}` : 'TBA' },
+    { place:'🥇 1st Place', prize: tournament.prizePool ? `PKR ${Math.round(parseInt(tournament.prizePool.replace(/\D/g,'')) * 0.5).toLocaleString()}` : 'TBA' },
+    { place:'🥈 2nd Place', prize: tournament.prizePool ? `PKR ${Math.round(parseInt(tournament.prizePool.replace(/\D/g,'')) * 0.3).toLocaleString()}` : 'TBA' },
+    { place:'🥉 3rd Place', prize: tournament.prizePool ? `PKR ${Math.round(parseInt(tournament.prizePool.replace(/\D/g,'')) * 0.2).toLocaleString()}` : 'TBA' },
   ]
 
   return (
@@ -73,7 +99,17 @@ export default function TournamentDetail() {
               <p className="text-secondary">{tournament.description || `Compete in ${tournament.game} and claim the championship. Register your team today.`}</p>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
-              {tournament.status === 'registration' && !registered && (
+              {user?.role === 'organizer' && (
+                <button className="btn btn--danger btn--lg" style={{marginBottom: 8}} onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this tournament?')) {
+                    const idx = MockDB._tournaments.findIndex(x => x.id === tournament.id)
+                    if (idx !== -1) MockDB._tournaments.splice(idx, 1)
+                    toast.success('Tournament deleted')
+                    navigate('/tournaments')
+                  }
+                }}>Delete Tournament</button>
+              )}
+              {tournament.status === 'registration' && !registered && user?.role === 'manager' && (
                 <button className="btn btn--primary btn--lg" onClick={handleRegister}>Register Team</button>
               )}
               {registered && <span className="badge badge--accent" style={{fontSize:'.875rem',padding:'8px 16px'}}>✓ Registration Started</span>}
@@ -109,11 +145,13 @@ export default function TournamentDetail() {
                     { label:'Status',     value: <span className={`badge badge--${isLive?'live':tournament.status==='upcoming'?'blue':'accent'}`}>{isLive?'LIVE':tournament.status}</span> },
                     { label:'Format',     value: tournament.format || 'Single Elimination' },
                     { label:'Platform',   value: tournament.platform || 'PC' },
+                    { label:'Organizer',  value: tournament.organizer || 'GIKI Esports Club' },
                     { label:'Max Teams',  value: `${tournament.maxTeams} teams` },
-                    { label:'Registered', value: `${tournament.registered} / ${tournament.maxTeams}` },
-                    { label:'Prize Pool', value: <strong style={{color:'var(--warn)'}}>{tournament.prize}</strong> },
-                    { label:'Start Date', value: tournament.date },
-                    { label:'Deadline',   value: tournament.deadline || 'May 8, 2025' },
+                    { label:'Registered', value: `${registeredTeams} / ${tournament.maxTeams}` },
+                    { label:'Prize Pool', value: <strong style={{color:'var(--warn)'}}>{prizePool || 'TBA'}</strong> },
+                    { label:'Start Date', value: startDate ? new Date(startDate).toLocaleString() : 'TBA' },
+                    { label:'End Date',   value: endDate ? new Date(endDate).toLocaleString() : 'TBA' },
+                    { label:'Deadline',   value: deadline ? new Date(deadline).toLocaleString() : 'TBA' },
                   ].map(row => (
                     <div key={row.label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:'.875rem',gap:16}}>
                       <span style={{color:'var(--text-muted)',flexShrink:0}}>{row.label}</span>
@@ -140,19 +178,19 @@ export default function TournamentDetail() {
                   <div style={{fontWeight:700,marginBottom:12,fontSize:'.9rem',textTransform:'uppercase',letterSpacing:'.05em',color:'var(--text-muted)'}}>Registration</div>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
                     <span style={{fontSize:'.875rem',color:'var(--text-muted)'}}>Slots filled</span>
-                    <span style={{fontWeight:700}}>{tournament.registered}/{tournament.maxTeams}</span>
+                    <span style={{fontWeight:700}}>{registeredTeams}/{tournament.maxTeams}</span>
                   </div>
                   <div style={{height:8,background:'var(--bg-4)',borderRadius:4,overflow:'hidden',marginBottom:12}}>
                     <div style={{height:'100%',width:`${pct}%`,background:pct>80?'var(--danger)':pct>60?'var(--warn)':'var(--accent)',borderRadius:4,transition:'width .4s ease'}} />
                   </div>
-                  {pct > 80 && <Alert type="warn" style={{marginBottom:12}}>Only {tournament.maxTeams - tournament.registered} spots left!</Alert>}
-                  {tournament.status === 'registration' && !registered && (
+                  {pct > 80 && <Alert type="warn" style={{marginBottom:12}}>Only {tournament.maxTeams - registeredTeams} spots left!</Alert>}
+                  {tournament.status === 'registration' && !registered && user?.role === 'manager' && (
                     <button className="btn btn--primary btn--full" onClick={handleRegister}>Register Your Team</button>
                   )}
-                  {tournament.deadline && (
+                  {deadline && (
                     <div style={{marginTop:12,textAlign:'center'}}>
                       <div style={{fontSize:'.75rem',color:'var(--text-muted)',marginBottom:8}}>REGISTRATION CLOSES IN</div>
-                      <Countdown target={new Date(tournament.deadline).toISOString()} size="sm" />
+                      <Countdown target={new Date(deadline).toISOString()} size="sm" />
                     </div>
                   )}
                 </div>
@@ -160,12 +198,15 @@ export default function TournamentDetail() {
                 {/* Recent results in this tournament */}
                 <div className="card card__body">
                   <div style={{fontWeight:700,marginBottom:12,fontSize:'.9rem',textTransform:'uppercase',letterSpacing:'.05em',color:'var(--text-muted)'}}>Latest Results</div>
-                  {MockDB._matches.slice(0,3).map(m => (
+                  {tournamentMatches.slice(0,3).map(m => (
                     <div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:'.8rem'}}>
                       <span style={{color:'var(--text-muted)'}}>{m.team1?.name || m.teamA || 'TBD'} vs {m.team2?.name || m.teamB || 'TBD'}</span>
-                      <span className={`badge badge--${m.status === 'completed' ? 'accent' : 'blue'}`}>{m.status === 'completed' ? m.score || 'Completed' : m.status}</span>
+                      <span className={`badge badge--${m.status === 'completed' ? 'accent' : 'blue'}`}>{m.status === 'completed' ? formatScore(m.score) : m.status}</span>
                     </div>
                   ))}
+                  {tournamentMatches.length === 0 && (
+                    <div style={{padding:'12px 0',fontSize:'.85rem',color:'var(--text-muted)'}}>No results have been posted yet.</div>
+                  )}
                   <Link to="/bracket" className="btn btn--ghost btn--sm" style={{marginTop:12,width:'100%',justifyContent:'center'}}>View Full Bracket</Link>
                 </div>
               </div>
@@ -184,7 +225,7 @@ export default function TournamentDetail() {
           {tab === 'teams' && (
             <div>
               <div className="grid-3">
-                {MockDB._teams.map(team => (
+                {displayTeams.map(team => (
                   <div key={team.id} className="card card__body">
                     <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                       <div style={{width:44,height:44,borderRadius:'var(--radius)',background:'var(--accent-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Rajdhani,sans-serif',fontSize:'1rem',fontWeight:700,color:'var(--accent)',flexShrink:0}}>
@@ -198,7 +239,7 @@ export default function TournamentDetail() {
                         {team.status === 'approved' ? 'Active' : 'Registered'}
                       </span>
                     </div>
-                    <div style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{team.players?.length || 5}/5 players</div>
+                    <div style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{team.players?.length || team.roster?.length || tournament.teamSize || 5}/{tournament.teamSize || 5} players</div>
                   </div>
                 ))}
               </div>
@@ -212,7 +253,7 @@ export default function TournamentDetail() {
                   <table>
                     <thead><tr><th>Match</th><th>Stage</th><th>Date & Time</th><th>Status</th></tr></thead>
                     <tbody>
-                      {MockDB._matches.map(m => (
+                      {tournamentMatches.map(m => (
                         <tr key={m.id} style={{cursor:'pointer'}} onClick={() => navigate(`/match/${m.id}`)}>
                           <td><strong>{m.team1?.name || m.teamA || 'TBD'}</strong> vs <strong>{m.team2?.name || m.teamB || 'TBD'}</strong></td>
                           <td>{m.stage || 'Quarterfinal'}</td>
@@ -220,6 +261,11 @@ export default function TournamentDetail() {
                           <td><span className={`badge badge--${m.status==='completed'?'accent':m.status==='live'?'live':'blue'}`}>{m.status}</span></td>
                         </tr>
                       ))}
+                      {tournamentMatches.length === 0 && (
+                        <tr>
+                          <td colSpan="4" style={{textAlign:'center',color:'var(--text-muted)',padding:24}}>No matches scheduled yet.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

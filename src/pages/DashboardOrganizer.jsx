@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Alert from '../components/Alert'
@@ -27,6 +27,33 @@ const TEAM_APPROVALS = [
 
 const EMPTY_ANN = { title:'', message:'', type:'maintenance', startTime:'', endTime:'' }
 
+const startOfToday = () => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const toDateTimeLocal = (date) => {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T00:00`
+}
+
+const isBeforeToday = (value) => {
+  if (!value) return false
+  const d = new Date(value)
+  d.setHours(0, 0, 0, 0)
+  return d < startOfToday()
+}
+
+const UNDO_WINDOW_MS = 10 * 60 * 1000
+
+const formatUndoTime = (expiresAt, now) => {
+  const remaining = Math.max(0, expiresAt - now)
+  const minutes = Math.floor(remaining / 60000)
+  const seconds = Math.floor((remaining % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
 export default function DashboardOrganizer() {
   const { user } = useAuth()
   const toast    = useToast()
@@ -36,56 +63,261 @@ export default function DashboardOrganizer() {
   const [annForm,      setAnnForm]      = useState(EMPTY_ANN)
   const [annErrors,    setAnnErrors]    = useState({})
 
+  const [tournForm, setTournForm] = useState({ title: '', game: '', maxTeams: '16', customMaxTeams: '', prize: '', format: 'Single Elimination', coverImage: null, startDate: '', registrationDeadline: '' })
+  const [tournErrors, setTournErrors] = useState({})
+  const createTournRef = useRef(null)
+
+  const [tournConfirm, setTournConfirm] = useState(false)
+  const [tournUndoTimer, setTournUndoTimer] = useState(null) // { id, timeout }
+
   const [verifyModal,  setVerifyModal]  = useState(null)  // result object
   const [rejectConfirm,setRejectConfirm]= useState(null)  // { type:'result'|'team', id, name }
-  const [undoTimer,    setUndoTimer]    = useState(null)   // { id, timeout }
+  const [resultUndoTimers, setResultUndoTimers] = useState({})   // id -> { timeout, expiresAt }
+  const [teamUndoTimers,   setTeamUndoTimers]   = useState({})   // id -> { timeout, expiresAt }
+  const [resultRejectUndoTimers, setResultRejectUndoTimers] = useState({}) // id -> { timeout, expiresAt }
+  const [teamRejectUndoTimers,   setTeamRejectUndoTimers]   = useState({}) // id -> { timeout, expiresAt }
+  const [now, setNow] = useState(Date.now())
   const [verified,     setVerified]     = useState([])
   const [rejected,     setRejected]     = useState([])
   const [approvedTeams,setApprovedTeams]= useState([])
   const [rejectedTeams,setRejectedTeams]= useState([])
 
   const firstName = user?.name?.split(' ')[0] || 'Organizer'
+  const todayMin = toDateTimeLocal(startOfToday())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleVerify = (result) => {
     setVerifyModal(null)
-    setVerified(v => [...v, result.id])
+    setVerified(v => v.includes(result.id) ? v : [...v, result.id])
     toast.success('Result verified!', `${result.winner} advances. 10-min undo window active.`)
+    const expiresAt = Date.now() + UNDO_WINDOW_MS
     const t = setTimeout(() => {
-      setUndoTimer(u => u?.id === result.id ? null : u)
+      setResultUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[result.id]
+        return next
+      })
       toast.info('Undo expired', 'The result is now permanent.')
-    }, 10 * 60 * 1000)
-    setUndoTimer({ id: result.id, timeout: t })
+    }, UNDO_WINDOW_MS)
+    setResultUndoTimers(prev => ({ ...prev, [result.id]: { timeout: t, expiresAt } }))
   }
 
   const handleUndo = (id) => {
-    if (undoTimer?.id === id) {
-      clearTimeout(undoTimer.timeout)
-      setUndoTimer(null)
+    if (resultUndoTimers[id]) {
+      clearTimeout(resultUndoTimers[id].timeout)
+      setResultUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
     }
     setVerified(v => v.filter(x => x !== id))
     toast.warn('Verification undone', 'The result has been reset to pending.')
   }
 
   const handleApproveTeam = (id) => {
-    setApprovedTeams(a => [...a, id])
-    toast.success('Team approved', 'The team can now compete.')
+    setApprovedTeams(a => a.includes(id) ? a : [...a, id])
+    toast.success('Team approved', 'The team can now compete. 10-min undo window active.')
+    const expiresAt = Date.now() + UNDO_WINDOW_MS
+    const t = setTimeout(() => {
+      setTeamUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      toast.info('Undo expired', 'The team approval is now permanent.')
+    }, UNDO_WINDOW_MS)
+    setTeamUndoTimers(prev => ({ ...prev, [id]: { timeout: t, expiresAt } }))
+  }
+
+  const handleUndoTeamApproval = (id) => {
+    if (teamUndoTimers[id]) {
+      clearTimeout(teamUndoTimers[id].timeout)
+      setTeamUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+    setApprovedTeams(a => a.filter(x => x !== id))
+    toast.warn('Approval undone', 'The team has been moved back to pending.')
   }
   const handleRejectTeam = (id) => {
-    setRejectedTeams(r => [...r, id])
+    setRejectedTeams(r => r.includes(id) ? r : [...r, id])
     setRejectConfirm(null)
-    toast.error('Team rejected', 'The team manager has been notified.')
+    toast.error('Team rejected', 'The team manager has been notified. 10-min undo window active.')
+    const expiresAt = Date.now() + UNDO_WINDOW_MS
+    const t = setTimeout(() => {
+      setTeamRejectUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      toast.info('Undo expired', 'The team rejection is now permanent.')
+    }, UNDO_WINDOW_MS)
+    setTeamRejectUndoTimers(prev => ({ ...prev, [id]: { timeout: t, expiresAt } }))
+  }
+
+  const handleUndoTeamRejection = (id) => {
+    if (teamRejectUndoTimers[id]) {
+      clearTimeout(teamRejectUndoTimers[id].timeout)
+      setTeamRejectUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+    setRejectedTeams(r => r.filter(x => x !== id))
+    toast.warn('Rejection undone', 'The team has been moved back to pending.')
   }
 
   const handlePublishAnn = () => {
     const e = {}
     if (!annForm.title.trim()) e.title = 'Title is required'
     if (!annForm.type)         e.type  = 'Select a type'
+    if (isBeforeToday(annForm.startTime)) e.startTime = 'Start time must be today or later'
+    if (isBeforeToday(annForm.endTime)) e.endTime = 'End time must be today or later'
+    if (annForm.startTime && annForm.endTime && new Date(annForm.startTime) >= new Date(annForm.endTime)) {
+      e.endTime = 'End time must be after start time'
+    }
     setAnnErrors(e)
     if (Object.keys(e).length) return
     publish({ ...annForm, createdBy: user?.name })
     toast.success('Announcement published!', 'All users will see it at the top of every page.')
     setAnnForm(EMPTY_ANN)
     setAnnErrors({})
+  }
+
+  const handleCreateTournament = () => {
+    const e = {}
+    if (!tournForm.title.trim()) e.title = 'Title is required'
+    if (!tournForm.game) e.game = 'Please select a game'
+    if (!tournForm.startDate) e.startDate = 'Start date is required'
+    if (!tournForm.registrationDeadline) e.registrationDeadline = 'Deadline is required'
+    if (isBeforeToday(tournForm.startDate)) e.startDate = 'Start date must be today or later'
+    if (isBeforeToday(tournForm.registrationDeadline)) e.registrationDeadline = 'Deadline must be today or later'
+    
+    if (tournForm.startDate && tournForm.registrationDeadline) {
+      if (new Date(tournForm.registrationDeadline) >= new Date(tournForm.startDate)) {
+        e.registrationDeadline = 'Deadline must be before start date'
+      }
+    }
+    
+    const isCustom = tournForm.maxTeams === 'custom'
+    const finalMaxTeams = isCustom ? parseInt(tournForm.customMaxTeams, 10) : parseInt(tournForm.maxTeams, 10)
+    
+    if (isCustom) {
+      if (!finalMaxTeams || isNaN(finalMaxTeams)) e.maxTeams = 'Please enter a valid number'
+      else if (finalMaxTeams <= 32) e.maxTeams = 'Custom teams must be greater than 32'
+      else if (Math.log2(finalMaxTeams) % 1 !== 0) e.maxTeams = 'Must be a power of 2 (64, 128, etc.)'
+    }
+
+    const prizeNum = parseInt(tournForm.prize, 10)
+    if (tournForm.prize && (isNaN(prizeNum) || prizeNum < 0 || prizeNum > 200000)) {
+      e.prize = 'Must be a number between 0 and 200000'
+    }
+
+    setTournErrors(e)
+    if (Object.keys(e).length) return
+
+    setTournConfirm(true)
+  }
+
+  const confirmCreateTournament = async () => {
+    if (isBeforeToday(tournForm.startDate) || isBeforeToday(tournForm.registrationDeadline)) {
+      setTournErrors({
+        ...(isBeforeToday(tournForm.startDate) ? { startDate: 'Start date must be today or later' } : {}),
+        ...(isBeforeToday(tournForm.registrationDeadline) ? { registrationDeadline: 'Deadline must be today or later' } : {}),
+      })
+      setTournConfirm(false)
+      return
+    }
+
+    if (tournForm.startDate && tournForm.registrationDeadline && new Date(tournForm.registrationDeadline) >= new Date(tournForm.startDate)) {
+      setTournErrors({ registrationDeadline: 'Deadline must be before start date' })
+      setTournConfirm(false)
+      return
+    }
+
+    setTournConfirm(false)
+    
+    const isCustom = tournForm.maxTeams === 'custom'
+    const finalMaxTeams = isCustom ? parseInt(tournForm.customMaxTeams, 10) : parseInt(tournForm.maxTeams, 10)
+
+    const payload = {
+      title: tournForm.title,
+      game: tournForm.game,
+      format: tournForm.format,
+      maxTeams: finalMaxTeams,
+      prizePool: tournForm.prize ? `PKR ${parseInt(tournForm.prize, 10).toLocaleString()}` : '',
+      coverImage: tournForm.coverImage,
+      organizer: user?.name,
+      registeredTeams: 0,
+      status: 'upcoming',
+      startDate: tournForm.startDate,
+      registrationDeadline: tournForm.registrationDeadline,
+      description: `${tournForm.game} tournament in ${tournForm.format} format. Registration closes before matches begin.`,
+    }
+
+    const t = { id: 't' + Date.now(), ...payload }
+    MockDB._tournaments.unshift(t) // add to top
+    MockDB.addNotification({
+      targetRole: 'manager',
+      type: 'tournament',
+      message: `<strong>${tournForm.title}</strong> registration is open for managers.`,
+    })
+    MockDB.addNotification({
+      targetRole: 'player',
+      type: 'tournament',
+      message: `<strong>${tournForm.title}</strong> has been announced for ${tournForm.game}.`,
+    })
+    
+    publish({ 
+      title: 'New Tournament Available', 
+      message: `${tournForm.title} for ${tournForm.game} is now open for registration!`, 
+      type: 'info', 
+      createdBy: user?.name 
+    })
+
+    toast.success('Tournament Created!', `${t.title} is now open for registration. 10-min undo window active.`)
+    
+    const timeout = setTimeout(() => {
+      setTournUndoTimer(u => u?.id === t.id ? null : u)
+      toast.info('Undo expired', 'The tournament creation is now permanent.')
+    }, 10 * 60 * 1000)
+    
+    setTournUndoTimer({ id: t.id, timeout })
+    
+    setTournForm({ title: '', game: '', maxTeams: '16', customMaxTeams: '', prize: '', format: 'Single Elimination', coverImage: null, startDate: '', registrationDeadline: '' })
+    setTournErrors({})
+  }
+
+  const handleUndoTournament = (id) => {
+    if (tournUndoTimer?.id === id) {
+      clearTimeout(tournUndoTimer.timeout)
+      setTournUndoTimer(null)
+    }
+    const idx = MockDB._tournaments.findIndex(x => x.id === id)
+    if (idx !== -1) MockDB._tournaments.splice(idx, 1)
+    toast.warn('Tournament creation undone', 'The tournament has been deleted.')
+  }
+  
+  const handleCoverImageChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File too large', 'Cover image must be under 2MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setTournForm(f => ({ ...f, coverImage: ev.target.result }))
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleClearAnn = () => {
@@ -96,12 +328,36 @@ export default function DashboardOrganizer() {
   const confirmReject = () => {
     if (!rejectConfirm) return
     if (rejectConfirm.type === 'result') {
-      setRejected(x => [...x, rejectConfirm.id])
+      const id = rejectConfirm.id
+      setRejected(x => x.includes(id) ? x : [...x, id])
       setRejectConfirm(null)
-      toast.error('Result rejected', 'The submitting team has been notified.')
+      toast.error('Result rejected', 'The submitting team has been notified. 10-min undo window active.')
+      const expiresAt = Date.now() + UNDO_WINDOW_MS
+      const t = setTimeout(() => {
+        setResultRejectUndoTimers(prev => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+        toast.info('Undo expired', 'The result rejection is now permanent.')
+      }, UNDO_WINDOW_MS)
+      setResultRejectUndoTimers(prev => ({ ...prev, [id]: { timeout: t, expiresAt } }))
     } else {
       handleRejectTeam(rejectConfirm.id)
     }
+  }
+
+  const handleUndoResultRejection = (id) => {
+    if (resultRejectUndoTimers[id]) {
+      clearTimeout(resultRejectUndoTimers[id].timeout)
+      setResultRejectUndoTimers(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+    setRejected(r => r.filter(x => x !== id))
+    toast.warn('Rejection undone', 'The result has been moved back to pending.')
   }
 
   const pendingCount  = PENDING_RESULTS.filter(r => !verified.includes(r.id) && !rejected.includes(r.id)).length
@@ -121,6 +377,7 @@ export default function DashboardOrganizer() {
               <p className="text-secondary" style={{marginTop:4}}>Spring University Cup 2025 · Quarterfinal Stage</p>
             </div>
             <div className="page-header-btns" style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+              <button className="btn btn--primary btn--lg" onClick={() => createTournRef.current?.scrollIntoView({ behavior: 'smooth' })}>Create Tournament</button>
               <Link to="/tournaments" className="btn btn--secondary btn--lg">Manage Tournaments</Link>
               <Link to="/bracket"     className="btn btn--ghost btn--lg">View Bracket</Link>
             </div>
@@ -162,18 +419,18 @@ export default function DashboardOrganizer() {
                 {PENDING_RESULTS.map(r => {
                   const isVerified = verified.includes(r.id)
                   const isRejected = rejected.includes(r.id)
-                  if (isRejected) return null
+                  const resultUndo = resultUndoTimers[r.id]
+                  const resultRejectUndo = resultRejectUndoTimers[r.id]
                   return (
-                    <div key={r.id} style={{padding:14,background:'var(--bg-3)',borderRadius:'var(--radius)',border:`1px solid ${isVerified ? 'var(--accent)' : 'var(--border)'}`}}>
+                    <div key={r.id} style={{padding:14,background:'var(--bg-3)',borderRadius:'var(--radius)',border:`1px solid ${isVerified ? 'var(--accent)' : isRejected ? 'var(--danger)' : 'var(--border)'}`}}>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                         <div>
                           <div style={{fontWeight:700,fontSize:'.875rem'}}>{r.match}</div>
                           <div style={{fontSize:'.75rem',color:'var(--text-muted)',marginTop:2}}>{r.stage} · Submitted {r.time} by {r.submittedBy}</div>
                         </div>
-                        {isVerified
-                          ? <span className="badge badge--accent">Verified</span>
-                          : <span className="badge badge--warn">Pending</span>
-                        }
+                        {isVerified ? <span className="badge badge--accent">Verified</span>
+                          : isRejected ? <span className="badge badge--danger">Rejected</span>
+                          : <span className="badge badge--warn">Pending</span>}
                       </div>
                       <div style={{display:'flex',gap:16,fontSize:'.8rem',marginBottom:12}}>
                         <span><span style={{color:'var(--text-muted)'}}>Winner: </span><strong style={{color:'var(--accent)'}}>{r.winner}</strong></span>
@@ -182,9 +439,15 @@ export default function DashboardOrganizer() {
                       </div>
                       <div style={{display:'flex',gap:8}}>
                         {isVerified ? (
-                          undoTimer?.id === r.id && (
+                          resultUndo && (
                             <button className="btn btn--outline btn--sm" onClick={() => handleUndo(r.id)}>
-                              ↩ Undo (within 10 min)
+                              ↩ Undo ({formatUndoTime(resultUndo.expiresAt, now)})
+                            </button>
+                          )
+                        ) : isRejected ? (
+                          resultRejectUndo && (
+                            <button className="btn btn--outline btn--sm" onClick={() => handleUndoResultRejection(r.id)}>
+                              â†© Undo Reject ({formatUndoTime(resultRejectUndo.expiresAt, now)})
                             </button>
                           )
                         ) : (
@@ -217,6 +480,8 @@ export default function DashboardOrganizer() {
                 {TEAM_APPROVALS.map(t => {
                   const isApproved = approvedTeams.includes(t.id)
                   const isRejected = rejectedTeams.includes(t.id)
+                  const approvalUndo = teamUndoTimers[t.id]
+                  const rejectionUndo = teamRejectUndoTimers[t.id]
                   return (
                     <div key={t.id} style={{padding:14,background:'var(--bg-3)',borderRadius:'var(--radius)',border:`1px solid ${isApproved ? 'var(--accent)' : isRejected ? 'var(--danger)' : 'var(--border)'}`}}>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
@@ -231,6 +496,20 @@ export default function DashboardOrganizer() {
                       <div style={{fontSize:'.8rem',color:'var(--text-muted)',marginBottom:12}}>
                         {t.players}/5 players · Submitted {t.submitted}
                       </div>
+                      {isApproved && approvalUndo && (
+                        <div style={{display:'flex',gap:8}}>
+                          <button className="btn btn--outline btn--sm" onClick={() => handleUndoTeamApproval(t.id)}>
+                            ↩ Undo ({formatUndoTime(approvalUndo.expiresAt, now)})
+                          </button>
+                        </div>
+                      )}
+                      {isRejected && rejectionUndo && (
+                        <div style={{display:'flex',gap:8}}>
+                          <button className="btn btn--outline btn--sm" onClick={() => handleUndoTeamRejection(t.id)}>
+                            Undo Reject ({formatUndoTime(rejectionUndo.expiresAt, now)})
+                          </button>
+                        </div>
+                      )}
                       {!isApproved && !isRejected && (
                         <div style={{display:'flex',gap:8}}>
                           <button className="btn btn--accent btn--sm" onClick={() => handleApproveTeam(t.id)}>Approve</button>
@@ -331,25 +610,30 @@ export default function DashboardOrganizer() {
 
               {/* Time range */}
               <div className="form-row" style={{marginBottom:20}}>
-                <div className="form-group" style={{margin:0}}>
+                <div className={`form-group ${annErrors.startTime ? 'has-error' : ''}`} style={{margin:0}}>
                   <label className="form-label">Start Time <span style={{color:'var(--text-muted)',fontWeight:400}}>(optional)</span></label>
                   <input
                     className="form-input"
                     type="datetime-local"
+                    min={todayMin}
+                    max={annForm.endTime || undefined}
                     value={annForm.startTime}
                     onChange={e => setAnnForm(f => ({ ...f, startTime: e.target.value }))}
                     onClick={e => { try { e.target.showPicker() } catch {} }}
                   />
+                  {annErrors.startTime && <div className="form-error" style={{display:'block'}}>{annErrors.startTime}</div>}
                 </div>
-                <div className="form-group" style={{margin:0}}>
+                <div className={`form-group ${annErrors.endTime ? 'has-error' : ''}`} style={{margin:0}}>
                   <label className="form-label">End Time <span style={{color:'var(--text-muted)',fontWeight:400}}>(optional)</span></label>
                   <input
                     className="form-input"
                     type="datetime-local"
+                    min={annForm.startTime || todayMin}
                     value={annForm.endTime}
                     onChange={e => setAnnForm(f => ({ ...f, endTime: e.target.value }))}
                     onClick={e => { try { e.target.showPicker() } catch {} }}
                   />
+                  {annErrors.endTime && <div className="form-error" style={{display:'block'}}>{annErrors.endTime}</div>}
                 </div>
               </div>
 
@@ -372,6 +656,84 @@ export default function DashboardOrganizer() {
             </div>
           </div>
 
+          {/* ── Create Tournament ── */}
+          <div ref={createTournRef} style={{marginBottom:32}}>
+            <div className="section-header" style={{marginBottom:16}}>
+              <div className="section-title">
+                🏆 Create New Tournament
+              </div>
+            </div>
+            <div className="card card__body">
+              <div className="form-row" style={{marginBottom:16}}>
+                <div className={`form-group ${tournErrors.title ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Tournament Title <span style={{color:'var(--danger)'}}>*</span></label>
+                  <input className="form-input" placeholder="e.g. Summer Championship" value={tournForm.title} onChange={e => setTournForm(f => ({ ...f, title: e.target.value }))} />
+                  {tournErrors.title && <div className="form-error" style={{display:'block'}}>{tournErrors.title}</div>}
+                </div>
+                <div className={`form-group ${tournErrors.game ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Game <span style={{color:'var(--danger)'}}>*</span></label>
+                  <select className="form-select" value={tournForm.game} onChange={e => setTournForm(f => ({ ...f, game: e.target.value }))}>
+                    <option value="">Select Game…</option>
+                    {['Valorant', 'CS2', 'League of Legends', 'PUBG Mobile', 'Fortnite'].map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  {tournErrors.game && <div className="form-error" style={{display:'block'}}>{tournErrors.game}</div>}
+                </div>
+              </div>
+              <div className="form-row" style={{marginBottom:20}}>
+                <div className="form-group" style={{margin:0}}>
+                  <label className="form-label">Format</label>
+                  <select className="form-select" value={tournForm.format} onChange={e => setTournForm(f => ({ ...f, format: e.target.value }))}>
+                    <option value="Single Elimination">Single Elimination</option>
+                    <option value="Double Elimination">Double Elimination</option>
+                    <option value="Round Robin">Round Robin</option>
+                  </select>
+                </div>
+                <div className={`form-group ${tournErrors.maxTeams ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Max Teams <span className="text-muted" style={{fontWeight:400}}>(8, 16, 32, or power of 2 &gt; 32)</span></label>
+                  <select className="form-select" value={tournForm.maxTeams} onChange={e => setTournForm(f => ({ ...f, maxTeams: e.target.value }))}>
+                    <option value="8">8 Teams</option>
+                    <option value="16">16 Teams</option>
+                    <option value="32">32 Teams</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {tournForm.maxTeams === 'custom' && (
+                    <input className="form-input" style={{marginTop:8}} type="number" placeholder="e.g. 64" value={tournForm.customMaxTeams} onChange={e => setTournForm(f => ({ ...f, customMaxTeams: e.target.value }))} />
+                  )}
+                  {tournErrors.maxTeams && <div className="form-error" style={{display:'block'}}>{tournErrors.maxTeams}</div>}
+                </div>
+                <div className={`form-group ${tournErrors.prize ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Prize Pool (PKR)</label>
+                  <input className="form-input" type="number" min="0" max="200000" placeholder="e.g. 50000" value={tournForm.prize} onChange={e => setTournForm(f => ({ ...f, prize: e.target.value }))} />
+                  {tournErrors.prize && <div className="form-error" style={{display:'block'}}>{tournErrors.prize}</div>}
+                </div>
+              </div>
+              <div className="form-row" style={{marginBottom:20}}>
+                <div className={`form-group ${tournErrors.startDate ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Start Date & Time <span style={{color:'var(--danger)'}}>*</span></label>
+                  <input className="form-input" type="datetime-local" min={tournForm.registrationDeadline || todayMin} value={tournForm.startDate} onChange={e => setTournForm(f => ({ ...f, startDate: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch {} }} />
+                  {tournErrors.startDate && <div className="form-error" style={{display:'block'}}>{tournErrors.startDate}</div>}
+                </div>
+                <div className={`form-group ${tournErrors.registrationDeadline ? 'has-error' : ''}`} style={{margin:0}}>
+                  <label className="form-label">Registration Deadline <span style={{color:'var(--danger)'}}>*</span></label>
+                  <input className="form-input" type="datetime-local" min={todayMin} max={tournForm.startDate || undefined} value={tournForm.registrationDeadline} onChange={e => setTournForm(f => ({ ...f, registrationDeadline: e.target.value }))} onClick={e => { try { e.target.showPicker() } catch {} }} />
+                  {tournErrors.registrationDeadline && <div className="form-error" style={{display:'block'}}>{tournErrors.registrationDeadline}</div>}
+                </div>
+              </div>
+              <div className="form-group" style={{marginBottom:20}}>
+                <label className="form-label">Tournament Cover Picture <span className="text-muted" style={{fontWeight:400}}>(optional, max 2MB)</span></label>
+                <input className="form-input" type="file" accept="image/*" onChange={handleCoverImageChange} style={{padding: '8px 12px'}} />
+                {tournForm.coverImage && (
+                  <div style={{marginTop: 12, borderRadius: 'var(--radius)', overflow: 'hidden', height: 100, border: '1px solid var(--border)'}}>
+                    <img src={tournForm.coverImage} alt="Cover preview" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  </div>
+                )}
+              </div>
+              <button className="btn btn--primary btn--sm" onClick={handleCreateTournament}>
+                Create Tournament
+              </button>
+            </div>
+          </div>
+
           {/* Tournament Overview */}
           <div>
             <div className="section-header">
@@ -384,7 +746,8 @@ export default function DashboardOrganizer() {
                   <thead><tr><th>Tournament</th><th>Game</th><th>Stage</th><th>Teams</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {MockDB._tournaments.slice(0,4).map(t => {
-                      const pct = Math.round((t.registered / t.maxTeams) * 100)
+                      const registeredTeams = t.registeredTeams ?? t.registered ?? 0
+                      const pct = Math.round((registeredTeams / t.maxTeams) * 100)
                       return (
                         <tr key={t.id} style={{cursor:'pointer'}} onClick={() => navigate(`/tournaments/${t.id}`)}>
                           <td><strong>{t.title}</strong></td>
@@ -395,7 +758,7 @@ export default function DashboardOrganizer() {
                               <div style={{height:4,width:60,background:'var(--bg-4)',borderRadius:2}}>
                                 <div style={{height:'100%',width:`${pct}%`,background:'var(--accent)',borderRadius:2}} />
                               </div>
-                              <span style={{fontSize:'.75rem',color:'var(--text-muted)'}}>{t.registered}/{t.maxTeams}</span>
+                              <span style={{fontSize:'.75rem',color:'var(--text-muted)'}}>{registeredTeams}/{t.maxTeams}</span>
                             </div>
                           </td>
                           <td>
@@ -403,7 +766,14 @@ export default function DashboardOrganizer() {
                               {t.status === 'live' ? 'LIVE' : t.status === 'upcoming' ? 'Upcoming' : t.status}
                             </span>
                           </td>
-                          <td><button className="btn btn--ghost btn--sm" onClick={e => { e.stopPropagation(); navigate(`/tournaments/${t.id}`) }}>Manage</button></td>
+                          <td>
+                            <div style={{display:'flex', gap: 8}}>
+                              {tournUndoTimer?.id === t.id && (
+                                <button className="btn btn--outline btn--sm" onClick={e => { e.stopPropagation(); handleUndoTournament(t.id); }}>↩ Undo</button>
+                              )}
+                              <button className="btn btn--ghost btn--sm" onClick={e => { e.stopPropagation(); navigate(`/tournaments/${t.id}`) }}>Manage</button>
+                            </div>
+                          </td>
                         </tr>
                       )
                     })}
@@ -449,6 +819,42 @@ export default function DashboardOrganizer() {
         )}
       </Modal>
 
+      {/* Tournament Creation Confirmation Modal */}
+      <Modal
+        open={tournConfirm}
+        onClose={() => setTournConfirm(false)}
+        title="Confirm Tournament Details"
+        size="md"
+        footer={
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn btn--ghost btn--sm" onClick={() => setTournConfirm(false)}>Cancel</button>
+            <button className="btn btn--primary btn--sm" onClick={confirmCreateTournament}>Yes, Create Tournament</button>
+          </div>
+        }
+      >
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          <Alert type="warn" title="Beware!">
+            Once created, you can not edit the tournament details. You can only delete the tournament.
+          </Alert>
+          <div style={{padding:16,background:'var(--bg-3)',borderRadius:'var(--radius)'}}>
+            <div style={{fontWeight:700,fontSize:'1.1rem',marginBottom:12}}>{tournForm.title}</div>
+            <div className="grid-2" style={{gap:12,fontSize:'.9rem'}}>
+              <div><span style={{color:'var(--text-muted)'}}>Game:</span> {tournForm.game}</div>
+              <div><span style={{color:'var(--text-muted)'}}>Format:</span> {tournForm.format}</div>
+              <div><span style={{color:'var(--text-muted)'}}>Max Teams:</span> {tournForm.maxTeams === 'custom' ? tournForm.customMaxTeams : tournForm.maxTeams}</div>
+              <div><span style={{color:'var(--text-muted)'}}>Prize Pool:</span> {tournForm.prize ? `PKR ${parseInt(tournForm.prize, 10).toLocaleString()}` : 'None'}</div>
+              <div><span style={{color:'var(--text-muted)'}}>Start Date:</span> {tournForm.startDate ? new Date(tournForm.startDate).toLocaleString() : 'TBA'}</div>
+              <div><span style={{color:'var(--text-muted)'}}>Deadline:</span> {tournForm.registrationDeadline ? new Date(tournForm.registrationDeadline).toLocaleString() : 'TBA'}</div>
+            </div>
+            {tournForm.coverImage && (
+              <div style={{marginTop: 16, borderRadius: 'var(--radius)', overflow: 'hidden', height: 120, border: '1px solid var(--border)'}}>
+                <img src={tournForm.coverImage} alt="Cover preview" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
       {/* Reject Confirmation Modal */}
       <Modal
         open={!!rejectConfirm}
@@ -465,7 +871,7 @@ export default function DashboardOrganizer() {
         {rejectConfirm && (
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <Alert type="danger" title="Are you sure?">
-              This action cannot be undone. The {rejectConfirm.type === 'result' ? 'submitting team' : 'team manager'} will be notified.
+              This action can be undone for 10 minutes. The {rejectConfirm.type === 'result' ? 'submitting team' : 'team manager'} will be notified.
             </Alert>
             <div style={{padding:14,background:'var(--bg-3)',borderRadius:'var(--radius)',fontSize:'.875rem'}}>
               <span style={{color:'var(--text-muted)'}}>Rejecting: </span>

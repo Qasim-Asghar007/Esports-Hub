@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Alert from '../components/Alert'
 import { useAuth } from '../hooks/useAuth'
@@ -22,6 +22,9 @@ export default function RegisterTeam() {
   const { user } = useAuth()
   const toast    = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
+  const initialTournament = location.state?.tournamentId || ''
+  const initialTournamentData = MockDB._tournaments.find(t => t.id === initialTournament)
 
   const [step,     setStep]    = useState(1)
   const [loading,  setLoading] = useState(false)
@@ -30,18 +33,19 @@ export default function RegisterTeam() {
   const rulesRef = useRef(null)
 
   const [form, setForm] = useState({
-    tournament: '',
+    tournament: initialTournament,
     teamName:   '',
     tag:        '',
-    game:       '',
+    game:       initialTournamentData?.game || '',
+    playerCount: 4,
     players:    [
-      { ...emptyPlayer },
-      { ...emptyPlayer },
-      { ...emptyPlayer },
+      { name: 'Player One', ign: 'Player1#123', role: 'Duelist', email: 'p1@giki.edu.pk' },
+      { name: 'Player Two', ign: 'Player2#123', role: 'Controller', email: 'p2@giki.edu.pk' },
+      { name: 'Player Three', ign: 'Player3#123', role: 'Initiator', email: 'p3@giki.edu.pk' },
+      { name: 'Player Four', ign: 'Player4#123', role: 'Sentinel', email: 'p4@giki.edu.pk' },
       { ...emptyPlayer },
       { ...emptyPlayer },
     ],
-    sub:        { ...emptyPlayer },
     rulesAccepted: false,
     contactEmail:  user?.email || '',
   })
@@ -59,10 +63,9 @@ export default function RegisterTeam() {
     if (step === 1 && !form.tournament) e.tournament = 'Please select a tournament.'
     if (step === 2) {
       if (!form.teamName.trim()) e.teamName = 'Team name is required.'
-      if (!form.game)            e.game     = 'Select a game.'
     }
     if (step === 3) {
-      form.players.forEach((p, i) => {
+      form.players.slice(0, form.playerCount).forEach((p, i) => {
         if (!p.name.trim()) e[`p${i}name`] = 'Name required'
         if (!p.ign.trim())  e[`p${i}ign`]  = 'IGN required'
         if (!p.role)        e[`p${i}role`] = 'Role required'
@@ -148,12 +151,19 @@ export default function RegisterTeam() {
                 {errors.tournament && <Alert type="danger">{errors.tournament}</Alert>}
                 <div style={{display:'flex',flexDirection:'column',gap:12}}>
                   {MockDB._tournaments.filter(t => t.status === 'registration' || t.status === 'upcoming').map(t => {
-                    const pct = Math.round((t.registered / t.maxTeams) * 100)
-                    const full = t.registered >= t.maxTeams
+                    const registeredTeams = t.registeredTeams ?? t.registered ?? 0
+                    const prizePool = t.prizePool ?? t.prize
+                    const deadline = t.registrationDeadline ?? t.deadline
+                    const pct = Math.round((registeredTeams / t.maxTeams) * 100)
+                    const full = registeredTeams >= t.maxTeams
                     return (
                       <label key={t.id} style={{cursor: full ? 'not-allowed' : 'pointer', opacity: full ? .5 : 1}}>
                         <div
-                          onClick={() => !full && set('tournament', t.id)}
+                          onClick={() => {
+                            if (!full) {
+                              setForm(f => ({ ...f, tournament: t.id, game: t.game }));
+                            }
+                          }}
                           style={{
                             padding:16,
                             background:'var(--bg-3)',
@@ -168,7 +178,7 @@ export default function RegisterTeam() {
                               <div style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:2}}>{t.game} · {t.format || 'Single Elimination'}</div>
                             </div>
                             <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
-                              <span className="badge badge--warn">{t.prize}</span>
+                              <span className="badge badge--warn">{prizePool || 'TBA'}</span>
                               {full && <span className="badge badge--danger">FULL</span>}
                             </div>
                           </div>
@@ -176,9 +186,9 @@ export default function RegisterTeam() {
                             <div style={{height:4,flex:1,background:'var(--bg-4)',borderRadius:2}}>
                               <div style={{height:'100%',width:`${pct}%`,background:pct>80?'var(--danger)':'var(--accent)',borderRadius:2}} />
                             </div>
-                            <span style={{color:'var(--text-muted)',flexShrink:0}}>{t.registered}/{t.maxTeams} teams</span>
+                            <span style={{color:'var(--text-muted)',flexShrink:0}}>{registeredTeams}/{t.maxTeams} teams</span>
                           </div>
-                          {t.deadline && <div style={{fontSize:'.75rem',color:'var(--text-muted)',marginTop:8}}>Deadline: {t.deadline}</div>}
+                          {deadline && <div style={{fontSize:'.75rem',color:'var(--text-muted)',marginTop:8}}>Deadline: {new Date(deadline).toLocaleString()}</div>}
                         </div>
                       </label>
                     )
@@ -206,14 +216,6 @@ export default function RegisterTeam() {
                     <div className="form-hint">Up to 5 characters shown in brackets</div>
                   </div>
                 </div>
-                <div className={`form-group ${errors.game ? 'has-error' : ''}`}>
-                  <label className="form-label">Game <span style={{color:'var(--danger)'}}>*</span></label>
-                  <select className="form-select" value={form.game} onChange={e => set('game', e.target.value)}>
-                    <option value="">Select game…</option>
-                    {['Valorant','CS2','League of Legends','PUBG Mobile'].map(g => <option key={g}>{g}</option>)}
-                  </select>
-                  {errors.game && <div className="form-error" style={{display:'block'}}>{errors.game}</div>}
-                </div>
                 <div className="form-group">
                   <label className="form-label">Contact Email</label>
                   <input className="form-input" type="email" value={form.contactEmail} onChange={e => set('contactEmail', e.target.value)} placeholder="manager@giki.edu.pk" />
@@ -231,12 +233,21 @@ export default function RegisterTeam() {
               <div style={{display:'flex',flexDirection:'column',gap:20}}>
                 <div>
                   <h2 style={{marginBottom:4}}>Build Your Roster</h2>
-                  <p className="text-secondary">Add 5 core players. You may also add 1 substitute.</p>
+                  <p className="text-secondary">Select your team size and fill in player details.</p>
                 </div>
-                {form.players.map((player, i) => (
+                <div className="form-group">
+                  <label className="form-label">Number of Players</label>
+                  <select className="form-select" value={form.playerCount} onChange={e => set('playerCount', parseInt(e.target.value))}>
+                    <option value={4}>4 Players (4 Core)</option>
+                    <option value={5}>5 Players (4 Core + 1 Sub)</option>
+                    <option value={6}>6 Players (4 Core + 2 Subs)</option>
+                  </select>
+                </div>
+                {form.players.slice(0, form.playerCount).map((player, i) => (
                   <div key={i} style={{padding:16,background:'var(--bg-3)',borderRadius:'var(--radius)',border:'1px solid var(--border)'}}>
                     <div style={{fontWeight:700,fontSize:'.8rem',color:'var(--accent)',marginBottom:12,textTransform:'uppercase'}}>
                       Player {i+1} {i === 0 && <span style={{color:'var(--warn)'}}>· Team Captain</span>}
+                      {i >= 4 && <span style={{color:'var(--text-muted)'}}> · Substitute</span>}
                     </div>
                     <div className="player-grid" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                       <div className={`form-group ${errors[`p${i}name`] ? 'has-error' : ''}`} style={{margin:0}}>
@@ -253,7 +264,7 @@ export default function RegisterTeam() {
                         <label className="form-label">Role *</label>
                         <select className="form-select" value={player.role} onChange={e => setPlayer(i,'role',e.target.value)}>
                           <option value="">Select…</option>
-                          {ROLES.filter(r => r !== 'Substitute').map(r => <option key={r}>{r}</option>)}
+                          {ROLES.map(r => <option key={r}>{r}</option>)}
                         </select>
                         {errors[`p${i}role`] && <div className="form-error" style={{display:'block'}}>{errors[`p${i}role`]}</div>}
                       </div>
@@ -272,22 +283,6 @@ export default function RegisterTeam() {
                     </div>
                   </div>
                 ))}
-                {/* Substitute */}
-                <div style={{padding:16,background:'var(--bg-3)',borderRadius:'var(--radius)',border:'1px dashed var(--border)'}}>
-                  <div style={{fontWeight:700,fontSize:'.8rem',color:'var(--text-muted)',marginBottom:12,textTransform:'uppercase'}}>
-                    Substitute (Optional)
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                    <div className="form-group" style={{margin:0}}>
-                      <label className="form-label">Full Name</label>
-                      <input className="form-input" value={form.sub.name} onChange={e => set('sub', {...form.sub, name:e.target.value})} placeholder="Sub player" />
-                    </div>
-                    <div className="form-group" style={{margin:0}}>
-                      <label className="form-label">In-Game Name</label>
-                      <input className="form-input" value={form.sub.ign} onChange={e => set('sub', {...form.sub, ign:e.target.value})} placeholder="SubPlayer#001" />
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -308,9 +303,9 @@ export default function RegisterTeam() {
                 >
                   {[
                     ['Eligibility', 'All players must be currently enrolled university students with valid student ID. Players may only represent one team per tournament.'],
-                    ['Team Composition', 'Teams must have exactly 5 core players registered before the deadline. One optional substitute may be added. No last-minute roster changes are allowed.'],
+                    ['Team Composition', 'Teams must have exactly 4 core players registered before the deadline. Up to two optional substitutes may be added. No last-minute roster changes are allowed.'],
                     ['Match Conduct', 'Players must be in the lobby 10 minutes before match time. Failure to show results in a forfeit. All players must maintain sportsmanlike conduct.'],
-                    ['Check-in', 'All 5 team members must confirm attendance at least 30 minutes before each match. Missing check-ins will be treated as forfeits.'],
+                    ['Check-in', 'All core team members must confirm attendance at least 30 minutes before each match. Missing check-ins will be treated as forfeits.'],
                     ['Result Submission', 'The winning team must submit a screenshot as evidence within 15 minutes. Organizers will verify and advance the bracket within 30 minutes.'],
                     ['Disputes', 'Disputes must be raised within 10 minutes of result posting. Include clear evidence. The organizer\'s decision is final and binding.'],
                     ['Fair Play', 'Use of cheats, exploits, or unauthorized software will result in immediate disqualification. EsportsHub reserves the right to ban repeat offenders.'],
@@ -356,7 +351,7 @@ export default function RegisterTeam() {
                     { label:'Team Name',  value: form.teamName },
                     { label:'Team Tag',   value: form.tag || 'N/A' },
                     { label:'Game',       value: form.game },
-                    { label:'Players',    value: `${form.players.filter(p=>p.name).length}/5 core${form.sub.name ? ' + 1 sub' : ''}` },
+                    { label:'Players',    value: `${form.playerCount <= 4 ? form.playerCount : 4} core${form.playerCount > 4 ? ` + ${form.playerCount - 4} sub(s)` : ''}` },
                     { label:'Contact',    value: form.contactEmail },
                   ].map(row => (
                     <div key={row.label} style={{display:'flex',justifyContent:'space-between',padding:'10px 14px',background:'var(--bg-3)',borderRadius:'var(--radius)',fontSize:'.875rem'}}>

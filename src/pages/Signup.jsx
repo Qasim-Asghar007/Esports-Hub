@@ -34,6 +34,7 @@ export default function Signup() {
     if (!pwRegex.test(form.password)) e.password = 'Password must be at least 8 chars, with upper, lower, and special chars.'
     if (form.confirm !== form.password) e.confirm = 'Passwords do not match.'
     if (!role) e.role = 'Please select a role.'
+    if (role === 'player' && !form.ign.trim()) e.ign = 'IGN is required for players.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -90,8 +91,8 @@ export default function Signup() {
           {/* Role selector */}
           <div style={{marginBottom:20}}>
             <div className="form-label" style={{marginBottom:12}}>I am a… <span style={{color:'var(--danger)'}}>*</span></div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-              {[{r:'player',emoji:'🎮'},{r:'manager',emoji:'📋'},{r:'organizer',emoji:'🛡️'}].map(({r,emoji}) => (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+              {[{r:'player',emoji:'🎮'},{r:'manager',emoji:'📋'}].map(({r,emoji}) => (
                 <label key={r} onClick={() => setRole(r)} style={{cursor:'pointer'}}>
                   <div style={{padding:'12px 8px',background:'var(--bg-3)',border:`2px solid ${role===r ? roleColors[r] : 'var(--border)'}`,borderRadius:'var(--radius)',textAlign:'center',transition:'all var(--t-fast)'}}>
                     <div style={{fontSize:'1.25rem',marginBottom:4}}>{emoji}</div>
@@ -130,10 +131,12 @@ export default function Signup() {
             </div>
 
             <div className="form-row">
-              <div className="form-group">
-                <label className="form-label" htmlFor="ign">In-game name (IGN)</label>
+              <div className={`form-group ${errors.ign ? 'has-error' : ''}`}>
+                <label className="form-label" htmlFor="ign">In-game name (IGN) {role === 'player' && <span>*</span>}</label>
                 <input className="form-input" id="ign" type="text" value={form.ign} onChange={set('ign')} placeholder="PhoenixAR#001" />
-                <div className="form-hint">Shown on match cards & leaderboard.</div>
+                {errors.ign
+                  ? <div className="form-error" style={{display:'block'}}>{errors.ign}</div>
+                  : <div className="form-hint">{role === 'manager' ? 'Optional for managers.' : 'Shown on match cards & leaderboard.'}</div>}
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="game">Primary game</label>

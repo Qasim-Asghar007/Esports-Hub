@@ -5,12 +5,10 @@ import Skeleton from '../components/Skeleton'
 import { MockDB } from '../api/index'
 import { useAuth } from '../hooks/useAuth'
 
-const TABS = ['global','tournament']
 const GAMES = ['All Games','Valorant','CS2','League of Legends']
 
 export default function Leaderboard() {
   const { user } = useAuth()
-  const [tab,         setTab]        = useState('global')
   const [game,        setGame]       = useState('All Games')
   const [pageLoading, setPageLoading]= useState(true)
 
@@ -94,14 +92,7 @@ export default function Leaderboard() {
           )}
 
           {/* Controls */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12,marginBottom:20}}>
-            <div style={{display:'flex',gap:4}}>
-              {TABS.map(t => (
-                <button key={t} className={`btn btn--sm ${tab===t?'btn--primary':'btn--ghost'}`} onClick={() => setTab(t)}>
-                  {t === 'global' ? '🌐 Global' : '🏆 By Tournament'}
-                </button>
-              ))}
-            </div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',flexWrap:'wrap',gap:12,marginBottom:20}}>
             <select className="form-select" style={{width:'auto'}} value={game} onChange={e => setGame(e.target.value)}>
               {GAMES.map(g => <option key={g}>{g}</option>)}
             </select>

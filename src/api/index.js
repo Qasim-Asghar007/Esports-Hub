@@ -70,8 +70,8 @@ export const API = {
     update:       (id, data)           => put(`/teams/${id}`, data),
     roster:       (id)                 => get(`/teams/${id}/roster`),
     updateRoster: (id, data)           => put(`/teams/${id}/roster`, data),
-    approve:      (id)                 => patch(`/teams/${id}/approve`),
-    reject:       (id)                 => patch(`/teams/${id}/reject`),
+    approve:      (id)                 => post(`/teams/${id}/approve`),
+    reject:       (id)                 => post(`/teams/${id}/reject`),
   },
   matches: {
     list:              (filters = {})    => get('/matches?' + new URLSearchParams(filters)),
@@ -104,6 +104,15 @@ export const API = {
 // ═══════════════════════════════════════════════════════════════
 //  MOCK DATABASE  — remove or leave as fallback when backend ready
 // ═══════════════════════════════════════════════════════════════
+const isBeforeToday = (value) => {
+  if (!value) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date < today
+}
+
 export const MockDB = {
   _users: [
     { id: 'u1', username: 'AliKhan',    email: 'ali@giki.edu.pk',    password: 'demo123', role: 'manager',   name: 'Ali Khan',    avatar: 'AK', game: 'Valorant', team: 'Nova Esports' },
@@ -167,6 +176,15 @@ export const MockDB = {
       if (method === 'GET') return { data: [...this._notifications], error: null }
       this._notifications.forEach(n => { n.read = true }); return { data: { ok: true }, error: null }
     }
+    if (path === '/notifications/read-all') {
+      this._notifications.forEach(n => { n.read = true })
+      return { data: { ok: true }, error: null }
+    }
+    if (path === '/notifications/read') {
+      const ids = Array.isArray(body?.ids) ? body.ids : []
+      this._notifications.forEach(n => { if (ids.includes(n.id)) n.read = true })
+      return { data: { ok: true }, error: null }
+    }
     if (path === '/leaderboard') {
       const params = new URLSearchParams(endpoint.split('?')[1] || '')
       const game = params.get('game')
@@ -175,6 +193,17 @@ export const MockDB = {
     if (path === '/tournaments') {
       if (method === 'GET')  return { data: [...this._tournaments], error: null }
       if (method === 'POST') {
+        const startDate = body?.startDate ?? body?.date
+        const registrationDeadline = body?.registrationDeadline ?? body?.deadline
+        if (isBeforeToday(startDate)) {
+          return { data: null, error: 'Start date must be today or later.' }
+        }
+        if (isBeforeToday(registrationDeadline)) {
+          return { data: null, error: 'Registration deadline must be today or later.' }
+        }
+        if (startDate && registrationDeadline && new Date(registrationDeadline) >= new Date(startDate)) {
+          return { data: null, error: 'Registration deadline must be before the tournament start date.' }
+        }
         const t = { id: 't' + Date.now(), registeredTeams: 0, status: 'upcoming', ...body }
         this._tournaments.push(t); return { data: t, error: null }
       }
@@ -203,6 +232,16 @@ export const MockDB = {
         this._teams.push(team)
         const t = this._tournaments.find(x => x.id === body.tournament)
         if (t) t.registeredTeams = (t.registeredTeams || 0) + 1
+        this.addNotification({
+          targetRole: 'organizer',
+          type: 'team',
+          message: `<strong>${team.name || 'A team'}</strong> submitted a registration for ${t?.title || 'a tournament'}.`,
+        })
+        this.addNotification({
+          targetRole: 'manager',
+          type: 'team',
+          message: `Your team <strong>${team.name || 'team'}</strong> registration is pending organizer approval.`,
+        })
         return { data: team, error: null }
       }
     }
@@ -211,14 +250,55 @@ export const MockDB = {
       const m = this._matches.find(x => x.id === seg[1])
       if (!m) return { data: null, error: 'Match not found' }
       if (seg[2] === 'attendance') { m.attendance = { ...m.attendance, confirmed: true }; return { data: { ok: true }, error: null } }
-      if (seg[2] === 'result')     { m.status = 'result_pending'; return { data: { ok: true }, error: null } }
-      if (seg[2] === 'verify')     { m.winner = body.winnerId; m.status = 'completed'; return { data: { ok: true }, error: null } }
+      if (seg[2] === 'result')     {
+        m.status = 'result_pending'
+        this.addNotification({
+          targetRole: 'organizer',
+          type: 'result',
+          message: `Result submitted for <strong>${m.team1?.name || m.teamA || 'a match'} vs ${m.team2?.name || m.teamB || 'TBD'}</strong>.`,
+        })
+        return { data: { ok: true }, error: null }
+      }
+      if (seg[2] === 'verify')     {
+        m.winner = body.winnerId; m.status = 'completed'
+        this.addNotification({
+          targetRole: 'manager',
+          type: 'result',
+          message: `Match result for <strong>${m.team1?.name || m.teamA || 'your team'} vs ${m.team2?.name || m.teamB || 'opponent'}</strong> has been verified.`,
+        })
+        this.addNotification({
+          targetRole: 'player',
+          type: 'result',
+          message: `Match result for <strong>${m.team1?.name || m.teamA || 'your team'} vs ${m.team2?.name || m.teamB || 'opponent'}</strong> has been verified.`,
+        })
+        return { data: { ok: true }, error: null }
+      }
       if (!seg[2]) return { data: { ...m }, error: null }
     }
     if (seg[0] === 'teams' && seg[1]) {
       const team = this._teams.find(x => x.id === seg[1])
-      if (seg[2] === 'approve') { if (team) team.status = 'approved'; return { data: { ok: true }, error: null } }
-      if (seg[2] === 'reject')  { if (team) team.status = 'rejected'; return { data: { ok: true }, error: null } }
+      if (seg[2] === 'approve') {
+        if (team) {
+          team.status = 'approved'
+          this.addNotification({
+            targetRole: 'manager',
+            type: 'team',
+            message: `Your team <strong>${team.name}</strong> has been approved.`,
+          })
+        }
+        return { data: { ok: true }, error: null }
+      }
+      if (seg[2] === 'reject')  {
+        if (team) {
+          team.status = 'rejected'
+          this.addNotification({
+            targetRole: 'manager',
+            type: 'team',
+            message: `Your team <strong>${team.name}</strong> was rejected.`,
+          })
+        }
+        return { data: { ok: true }, error: null }
+      }
       if (!seg[2] && method === 'GET') return { data: team ? { ...team } : null, error: null }
     }
     if (seg[0] === 'users' && seg[1]) {
@@ -269,5 +349,27 @@ export const MockDB = {
         ]},
       ]
     }
+  },
+
+  notificationsFor(user) {
+    if (!user) return []
+    return this._notifications.filter(n => {
+      if (n.userId) return n.userId === user.id
+      if (n.targetRole) return n.targetRole === user.role
+      if (user.role === 'organizer') return n.type === 'dispute'
+      if (user.role === 'manager') return n.type === 'team' || n.type === 'tournament'
+      return n.type === 'match' || n.type === 'result'
+    })
+  },
+
+  addNotification(notification) {
+    const item = {
+      id: 'n' + Date.now() + Math.floor(Math.random() * 1000),
+      time: 'just now',
+      read: false,
+      ...notification,
+    }
+    this._notifications.unshift(item)
+    return item
   },
 }

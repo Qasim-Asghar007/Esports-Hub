@@ -4,6 +4,15 @@ const { requireAuth, requireRole } = require('../middleware/auth')
 
 const router = express.Router()
 
+function isBeforeToday(value) {
+  if (!value) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date < today
+}
+
 /* GET /tournaments */
 router.get('/', requireAuth, async (req, res) => {
   const { game, status } = req.query
@@ -24,8 +33,20 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 /* POST /tournaments — organizer only */
 router.post('/', requireAuth, requireRole('organizer'), async (req, res) => {
-  const { title, game, format, maxTeams, prize, date, deadline, platform, description } = req.body
+  const { title, game, format, maxTeams, prize, date, deadline, startDate, registrationDeadline, platform, description } = req.body
   if (!title || !game) return res.status(400).json({ error: 'Title and game are required.' })
+
+  const start = startDate || date
+  const regDeadline = registrationDeadline || deadline
+  if (isBeforeToday(start)) {
+    return res.status(400).json({ error: 'Start date must be today or later.' })
+  }
+  if (isBeforeToday(regDeadline)) {
+    return res.status(400).json({ error: 'Registration deadline must be today or later.' })
+  }
+  if (start && regDeadline && new Date(regDeadline) >= new Date(start)) {
+    return res.status(400).json({ error: 'Registration deadline must be before the tournament start date.' })
+  }
   
   const t = await prisma.tournament.create({
     data: {
@@ -33,7 +54,7 @@ router.post('/', requireAuth, requireRole('organizer'), async (req, res) => {
       status: 'registration', stage: 'Registration',
       format: format || 'Single Elimination',
       maxTeams: maxTeams || 16, registered: 0,
-      prize: prize || 'TBA', date: date || null, deadline: deadline || null,
+      prize: prize || 'TBA', date: start || null, deadline: regDeadline || null,
       platform: platform || 'PC', description: description || '',
       organizer: req.user.id
     }

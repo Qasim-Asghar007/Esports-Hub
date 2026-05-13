@@ -148,6 +148,20 @@ router.post('/', requireAuth, requireRole('manager'), async (req, res) => {
     await prisma.notification.createMany({ data: notifs })
   }
 
+  const organizers = await prisma.user.findMany({ where: { role: 'organizer' } })
+  if (organizers.length > 0) {
+    await prisma.notification.createMany({
+      data: organizers.map(org => ({
+        userId: org.id,
+        message: `Team <strong>${team.name}</strong> registered for <strong>${t.title}</strong>.`,
+        time: 'just now',
+        read: false,
+        type: 'team_registration',
+        teamId: team.id
+      }))
+    })
+  }
+
   res.status(201).json({ data: team })
 })
 
@@ -192,10 +206,23 @@ router.post('/:id/approve', requireAuth, requireRole('organizer'), async (req, r
 /* POST /teams/:id/reject — organizer rejects team */
 router.post('/:id/reject', requireAuth, requireRole('organizer'), async (req, res) => {
   try {
+    const team = await prisma.team.findUnique({ where: { id: req.params.id } })
     const updated = await prisma.team.update({
       where: { id: req.params.id },
       data: { status: 'rejected' }
     })
+    if (team?.managerId) {
+      await prisma.notification.create({
+        data: {
+          userId: team.managerId,
+          message: `Your team <strong>${team.name}</strong> registration was rejected.`,
+          time: 'just now',
+          read: false,
+          type: 'team_rejected',
+          teamId: team.id
+        }
+      })
+    }
     res.json({ data: updated })
   } catch (err) {
     res.status(404).json({ error: 'Team not found.' })

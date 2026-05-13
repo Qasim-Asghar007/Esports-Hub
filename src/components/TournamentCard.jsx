@@ -41,22 +41,26 @@ const gameColors = Object.fromEntries(
 )
 
 const statusBadge = (status) => {
-  if (status === 'active')    return <span className="badge badge--live">LIVE</span>
+  if (status === 'active' || status === 'live') return <span className="badge badge--live">LIVE</span>
+  if (status === 'registration') return <span className="badge badge--accent">Registration</span>
   if (status === 'upcoming')  return <span className="badge badge--blue">Upcoming</span>
   if (status === 'completed') return <span className="badge badge--muted">Completed</span>
   return null
 }
 
-export default function TournamentCard({ tournament, actionLabel, onAction }) {
+export default function TournamentCard({ tournament, actionLabel, onAction, isOrganizer, onDelete, onRegister }) {
   const navigate = useNavigate()
   const [imgFailed, setImgFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
   const t = tournament
   const meta = GAME_META[t.game]
   const style = gameColors[t.game] || { bg: 'var(--bg-4)', text: 'var(--accent)', abbr: t.game?.slice(0,4).toUpperCase() }
-  const pct = Math.round(((t.registeredTeams || 0) / t.maxTeams) * 100)
+  const registeredTeams = t.registeredTeams ?? t.registered ?? 0
+  const startDate = t.startDate ?? t.date ?? 'TBA'
+  const prizePool = t.prizePool ?? t.prize
+  const pct = Math.round((registeredTeams / t.maxTeams) * 100)
 
-  const imgSrc = !imgFailed ? meta?.img : (!fallbackFailed ? meta?.fallbackImg : null)
+  const imgSrc = !imgFailed ? (t.coverImage || meta?.img) : (!fallbackFailed ? meta?.fallbackImg : null)
 
   return (
     <div
@@ -89,21 +93,21 @@ export default function TournamentCard({ tournament, actionLabel, onAction }) {
         <div className="tournament-card__meta">
           <span className="tournament-card__meta-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
-            {t.startDate}
+            {startDate}
           </span>
           <span className="tournament-card__meta-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-            {t.registeredTeams}/{t.maxTeams} teams
+            {registeredTeams}/{t.maxTeams} teams
           </span>
-          {t.prizePool && (
-            <span className="tournament-card__meta-item" style={{ color: 'var(--warn)' }}>{t.prizePool}</span>
+          {prizePool && (
+            <span className="tournament-card__meta-item" style={{ color: 'var(--warn)' }}>{prizePool}</span>
           )}
           {t.format && <span className="tournament-card__meta-item">{t.format}</span>}
         </div>
         {t.status !== 'completed' && (
           <div className="tournament-card__progress">
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.75rem', color:'var(--text-muted)' }}>
-              <span>Registration</span><span>{t.registeredTeams}/{t.maxTeams}</span>
+              <span>Registration</span><span>{registeredTeams}/{t.maxTeams}</span>
             </div>
             <div className="tournament-card__progress-bar">
               <div className="tournament-card__progress-fill" style={{ width: pct + '%' }} />
@@ -118,12 +122,30 @@ export default function TournamentCard({ tournament, actionLabel, onAction }) {
       </div>
       <div className="tournament-card__footer">
         <span style={{ fontSize:'.78rem', color:'var(--text-muted)' }}>{t.organizer}</span>
-        <button
-          className="btn btn--primary btn--sm"
-          onClick={(e) => { e.stopPropagation(); onAction ? onAction(t) : navigate(`/tournaments/${t.id}`) }}
-        >
-          {actionLabel || 'View →'}
-        </button>
+        <div style={{display:'flex', gap:8}}>
+          {isOrganizer && onDelete && (
+            <button
+              className="btn btn--danger btn--sm"
+              onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
+            >
+              Delete
+            </button>
+          )}
+          {onRegister && (
+            <button
+              className="btn btn--accent btn--sm"
+              onClick={(e) => { e.stopPropagation(); onRegister(t); }}
+            >
+              Register Team
+            </button>
+          )}
+          <button
+            className="btn btn--primary btn--sm"
+            onClick={(e) => { e.stopPropagation(); onAction ? onAction(t) : navigate(`/tournaments/${t.id}`) }}
+          >
+            {actionLabel || 'View →'}
+          </button>
+        </div>
       </div>
     </div>
   )

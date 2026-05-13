@@ -14,7 +14,26 @@ router.get('/', requireAuth, async (req, res) => {
   res.json({ data: notifs })
 })
 
-/* POST /notifications/mark-all */
+/* PATCH /notifications/read-all */
+router.patch('/read-all', requireAuth, async (req, res) => {
+  await prisma.notification.updateMany({
+    where: { userId: req.user.id, read: false },
+    data: { read: true }
+  })
+  res.json({ data: { ok: true } })
+})
+
+/* PATCH /notifications/read */
+router.patch('/read', requireAuth, async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : []
+  await prisma.notification.updateMany({
+    where: { userId: req.user.id, id: { in: ids } },
+    data: { read: true }
+  })
+  res.json({ data: { ok: true } })
+})
+
+/* Backward-compatible aliases */
 router.post('/mark-all', requireAuth, async (req, res) => {
   await prisma.notification.updateMany({
     where: { userId: req.user.id, read: false },
@@ -23,7 +42,6 @@ router.post('/mark-all', requireAuth, async (req, res) => {
   res.json({ data: { ok: true } })
 })
 
-/* POST /notifications/:id/read */
 router.post('/:id/read', requireAuth, async (req, res) => {
   const n = await prisma.notification.findUnique({ where: { id: req.params.id } })
   if (!n || n.userId !== req.user.id) return res.status(404).json({ error: 'Not found.' })

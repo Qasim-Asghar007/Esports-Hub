@@ -12,7 +12,7 @@ const GAMES   = ['All Games', 'Valorant', 'CS2', 'League of Legends', 'PUBG Mobi
 const STATUSES = ['All', 'live', 'upcoming', 'registration', 'completed']
 
 export default function Tournaments() {
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, user } = useAuth()
   const toast          = useToast()
   const navigate       = useNavigate()
 
@@ -22,6 +22,7 @@ export default function Tournaments() {
   const [sort,      setSort]      = useState('newest')
   const [registered,setRegistered]= useState([])
   const [pageLoading, setPageLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Simulate initial data fetch (replace with real API call when backend connected)
   useEffect(() => {
@@ -33,21 +34,31 @@ export default function Tournaments() {
     let list = [...MockDB._tournaments]
     if (search.trim()) list = list.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.game.toLowerCase().includes(search.toLowerCase()))
     if (game !== 'All Games') list = list.filter(t => t.game === game)
-    if (status !== 'All') list = list.filter(t => t.status === status)
+    if (status !== 'All') list = list.filter(t => status === 'live' ? (t.status === 'live' || t.status === 'active') : t.status === status)
     if (sort === 'az')       list.sort((a,b) => a.title.localeCompare(b.title))
-    if (sort === 'prize')    list.sort((a,b) => parseInt(b.prize||0) - parseInt(a.prize||0))
-    if (sort === 'slots')    list.sort((a,b) => (b.maxTeams - b.registered) - (a.maxTeams - a.registered))
+    if (sort === 'prize')    list.sort((a,b) => parseInt(b.prizePool || b.prize || 0) - parseInt(a.prizePool || a.prize || 0))
+    if (sort === 'slots')    list.sort((a,b) => (b.maxTeams - (b.registeredTeams ?? b.registered ?? 0)) - (a.maxTeams - (a.registeredTeams ?? a.registered ?? 0)))
     return list
-  }, [search, game, status, sort])
+  }, [search, game, status, sort, refreshKey])
 
   const handleRegister = (t) => {
     if (!isLoggedIn) { navigate('/login'); return }
     setRegistered(r => [...r, t.id])
-    toast.success('Registration started!', `Redirecting to team registration for ${t.title}`)
-    setTimeout(() => navigate('/register-team'), 800)
+    toast.success('Registration started!', `Opening team registration for ${t.title}`)
+    setTimeout(() => navigate('/register-team', { state: { tournamentId: t.id } }), 500)
   }
 
-  const liveCount     = MockDB._tournaments.filter(t => t.status === 'live').length
+  const handleDelete = (id) => {
+    if (!window.confirm('Are you sure you want to delete this tournament?')) return
+    const idx = MockDB._tournaments.findIndex(t => t.id === id)
+    if (idx !== -1) {
+      MockDB._tournaments.splice(idx, 1)
+      setRefreshKey(k => k + 1)
+      toast.success('Tournament deleted successfully')
+    }
+  }
+
+  const liveCount     = MockDB._tournaments.filter(t => t.status === 'live' || t.status === 'active').length
   const upcomingCount = MockDB._tournaments.filter(t => t.status === 'upcoming' || t.status === 'registration').length
 
   if (pageLoading) return (
@@ -146,12 +157,23 @@ export default function Tournaments() {
           ) : (
             <div className="grid-3">
               {tournaments.map(t => (
-                <TournamentCard
-                  key={t.id}
-                  tournament={t}
-                  onAction={() => handleRegister(t)}
-                  registered={registered.includes(t.id)}
-                />
+                (() => {
+                  const registeredTeams = t.registeredTeams ?? t.registered ?? 0
+                  const canRegisterTeam = user?.role === 'manager'
+                    && (t.status === 'registration' || t.status === 'upcoming')
+                    && registeredTeams < t.maxTeams
+                  return (
+                    <TournamentCard
+                      key={t.id}
+                      tournament={t}
+                      actionLabel="Details"
+                      registered={registered.includes(t.id)}
+                      isOrganizer={user?.role === 'organizer'}
+                      onDelete={handleDelete}
+                      onRegister={canRegisterTeam ? handleRegister : null}
+                    />
+                  )
+                })()
               ))}
             </div>
           )}
